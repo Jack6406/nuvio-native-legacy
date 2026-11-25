@@ -1148,9 +1148,15 @@ static void metaCartao(const IlhaCartao *c, int qual, char *b, size_t n) {
     else snprintf(b, n, "%s", te[0] ? te : c->quando);
     return;
   }
-  { int m = c->restanteMin < 1 ? 1 : c->restanteMin;
-    if (c->serie && c->t > 0 && c->e > 0) snprintf(b, n, i18n("T%dE%d · %d min restantes"), c->t, c->e, m);
-    else snprintf(b, n, i18n("%d min restantes"), m); }
+  { int rm = c->restanteMin < 1 ? 1 : c->restanteMin;
+    char tempo[32];
+    if (rm >= 60) {
+      int h = rm / 60, m = rm % 60;
+      if (m > 0) snprintf(tempo, sizeof tempo, "%dh %dm left", h, m);
+      else       snprintf(tempo, sizeof tempo, "%dh left", h);
+    } else snprintf(tempo, sizeof tempo, "%dm left", rm);
+    if (c->serie && c->t > 0 && c->e > 0) snprintf(b, n, "S%dE%d · %s", c->t, c->e, tempo);
+    else snprintf(b, n, "%s", tempo); }
 }
 
 static float larguraCartao(const IlhaCartao *c, int qual, LinhasCartao *L) {
@@ -1642,8 +1648,14 @@ static void desenharModal(GfxRect m, float a) {
     snprintf(mobile.texto, sizeof mobile.texto, "%s", c->sinopse);
     if (c->serie && c->t > 0 && c->e > 0)
       snprintf(mobile.linha, sizeof mobile.linha, i18n("T%dE%d · %s"), c->t, c->e, c->epNome);
-    if (modalQual == ILHA_VIVO)
-      snprintf(mobile.estado, sizeof mobile.estado, i18n("%d min restantes"), c->restanteMin < 1 ? 1 : c->restanteMin);
+    if (modalQual == ILHA_VIVO) {
+      int rm = c->restanteMin < 1 ? 1 : c->restanteMin;
+      if (rm >= 60) {
+        int h = rm / 60, m = rm % 60;
+        if (m > 0) snprintf(mobile.estado, sizeof mobile.estado, "%dh %dm left", h, m);
+        else       snprintf(mobile.estado, sizeof mobile.estado, "%dh left", h);
+      } else snprintf(mobile.estado, sizeof mobile.estado, "%dm left", rm);
+    }
     else if (modalQual == ILHA_AMIGO)
       snprintf(mobile.estado, sizeof mobile.estado, i18n("%s · agora"), c->pessoa);
     else snprintf(mobile.estado, sizeof mobile.estado, "%s", c->quando);
@@ -1781,8 +1793,12 @@ static void desenharModal(GfxRect m, float a) {
   { char b[120];
     TxtLinha t;
     if (modalQual == ILHA_VIVO) {
-      int mi = c->restanteMin < 1 ? 1 : c->restanteMin;
-      snprintf(b, sizeof b, i18n("%d min restantes"), mi);
+      int rm = c->restanteMin < 1 ? 1 : c->restanteMin;
+      if (rm >= 60) {
+        int h = rm / 60, m = rm % 60;
+        if (m > 0) snprintf(b, sizeof b, "%dh %dm left", h, m);
+        else       snprintf(b, sizeof b, "%dh left", h);
+      } else snprintf(b, sizeof b, "%dm left", rm);
     } else if (modalQual == ILHA_AMIGO) snprintf(b, sizeof b, i18n("%s · agora"), c->pessoa);
     else if (c->quando[0]) snprintf(b, sizeof b, "%s · %s", i18n("Episódio novo"), c->quando);
     else snprintf(b, sizeof b, "%s", i18n("Episódio novo"));

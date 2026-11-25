@@ -20,7 +20,7 @@
 // continua valendo, porque meio mapa e melhor que nenhum.
 #define VE_LOTE VE_LOTE_MAX
 
-typedef struct { char id[16]; short temp, ep; unsigned char visto; } Marca;
+typedef struct { char id[32]; short temp, ep; unsigned char visto; } Marca;
 static Marca *mapa;
 static int n, cap, avisouTeto;
 // Sobe a cada mudanca de estado no mapa (vistoep_revisao).
@@ -37,12 +37,35 @@ static pthread_mutex_t trava = PTHREAD_MUTEX_INITIALIZER;
 // So o id do titulo. "tt123:2:8" e "tt123" tem de casar: o primeiro e o formato
 // que CatItem.imdb carrega num item de "Continuar assistindo", e quem chama
 // daqui nem sempre sabe qual dos dois tem na mao.
+static int sufixoEp(const char *p) {
+  const char *r = p;
+  int k = 0;
+  if (!r || *r != ':') return 0;
+  r++;
+  while (*r >= '0' && *r <= '9') { r++; k++; }
+  if (!k || *r != ':') return 0;
+  r++; k = 0;
+  while (*r >= '0' && *r <= '9') { r++; k++; }
+  return k && !*r;
+}
+
 static void base(const char *origem, char *dst, size_t tam) {
-  size_t k = 0;
+  const char *c;
+  size_t k;
   if (!dst || !tam) return;
   dst[0] = 0;
   if (!origem) return;
-  while (origem[k] && origem[k] != ':' && k + 1 < tam) { dst[k] = origem[k]; k++; }
+  k = strlen(origem);
+  c = strrchr(origem, ':');
+  if (c && c > origem) {
+    const char *d = c - 1;
+    while (d > origem && *d != ':') d--;
+    if (*d == ':' && d > origem && sufixoEp(d) &&
+        (!strncmp(origem, "tt", 2) || memchr(origem, ':', (size_t)(d - origem))))
+      k = (size_t)(d - origem);
+  }
+  if (k >= tam) k = tam - 1;
+  memcpy(dst, origem, k);
   dst[k] = 0;
 }
 
@@ -54,7 +77,7 @@ static int achar(const char *id, int t, int e) {
 }
 
 static int definir(const char *imdb, int temporada, int episodio, int visto) {
-  char id[16];
+  char id[32];
   int i;
   base(imdb, id, sizeof id);
   if (!id[0] || temporada < 0 || temporada > SHRT_MAX ||

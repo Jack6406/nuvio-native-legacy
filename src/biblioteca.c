@@ -65,6 +65,7 @@
 #include "biblioteca.h"
 #include "posterprov.h"
 #include "contalib.h"
+#include "vistoep.h"
 #include "salvos.h"
 #include "artemetahub.h"
 #include "extras.h"
@@ -698,7 +699,7 @@ static int contarModo(int m) {
     const CatItem *ci = cat_item(i);
     if (!ci) continue;
     int ok = m == MODO_SALVOS ? salvoNaFonte(ci)
-           : m == MODO_VISTOS ? cat_visto(ci)
+           : m == MODO_VISTOS ? (cat_visto(ci) || vistoep_contar(ci->imdb) > 0)
            : (ci->naColecao || comprado[i]);
     if (!ok) continue;
     if (jaNoFiltro(ci->imdb)) continue;
@@ -752,7 +753,7 @@ static void reconstruirFonte(int novaFonte) {
     // rede a cada descoberta, entao a posicao 3 de hoje e outro titulo amanha —
     // a marca "salvo" migrava sozinha para um filme que ninguem salvou.
     int entra = (modo == MODO_SALVOS) ? salvoNaFonte(ci)
-              : (modo == MODO_VISTOS) ? cat_visto(ci)
+              : (modo == MODO_VISTOS) ? (cat_visto(ci) || vistoep_contar(ci->imdb) > 0)
                                       : (ci->naColecao || comprado[i]);
     if (!entra) continue;
     // UM CARTAZ POR TITULO. O mesmo titulo vive em varias fileiras, cada uma
@@ -1991,7 +1992,12 @@ static void linhaMeta(const CatItem *ci, char *dst, size_t n) {
   // RestanteMin so entra com o rotulo certo. Progresso sem restante vira uma
   // porcentagem, nunca uma duracao inventada.
   if (ci->restanteMin > 0 && ci->progresso > 0 && ci->progresso < 100) {
-    snprintf(item, sizeof item, i18n("%d min restantes"), ci->restanteMin);
+    int rm = ci->restanteMin;
+    if (rm >= 60) {
+      int h = rm / 60, m = rm % 60;
+      if (m > 0) snprintf(item, sizeof item, "%dh %dm left", h, m);
+      else       snprintf(item, sizeof item, "%dh left", h);
+    } else snprintf(item, sizeof item, "%dm left", rm);
     acrescentarMeta(dst, n, &k, item);
   } else if (ci->progresso > 0 && ci->progresso < 100) {
     snprintf(item, sizeof item, i18n("%d%% assistido"), ci->progresso);

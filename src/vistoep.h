@@ -131,7 +131,7 @@ int  vistoep_temporada(const char *imdb, int temporada, VistoPar *saida, int max
 
 enum { VE_LOTE_TEMPORADA = 0, VE_LOTE_ATE, VE_LOTE_DAQUI };
 // ponytail: mapa inteiro + CAT_EP_MAX (1200); acompanhar se o catalogo crescer.
-#define VE_MAX 8000
+#define VE_MAX 16000
 #define VE_LOTE_MAX (VE_MAX + 1200)
 // O LOTE DE UM GESTO (temporada, ate aqui ou daqui em diante INCLUSIVO), do
 // MAPA e do CATALOGO juntos, sem repetir. O mapa sozinho so enumera a serie

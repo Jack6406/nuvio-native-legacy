@@ -328,13 +328,35 @@ unsigned long long cat_historico_geracao(void) {
   return g;
 }
 
+static int id_sufixo_ep(const char *p) {
+  const char *r = p;
+  int k = 0;
+  if (!r || *r != ':') return 0;
+  r++;
+  while (*r >= '0' && *r <= '9') { r++; k++; }
+  if (!k || *r != ':') return 0;
+  r++; k = 0;
+  while (*r >= '0' && *r <= '9') { r++; k++; }
+  return k && !*r;
+}
+
 static void id_base(const char *origem, char *destino, size_t tam) {
+  const char *c;
   size_t n = 0;
   if (!destino || tam == 0) return;
-  if (origem) {
-    while (origem[n] && origem[n] != ':' && n + 1 < tam) n++;
-    memcpy(destino, origem, n);
+  destino[0] = 0;
+  if (!origem) return;
+  n = strlen(origem);
+  c = strrchr(origem, ':');
+  if (c && c > origem) {
+    const char *d = c - 1;
+    while (d > origem && *d != ':') d--;
+    if (*d == ':' && d > origem && id_sufixo_ep(d) &&
+        (!strncmp(origem, "tt", 2) || memchr(origem, ':', (size_t)(d - origem))))
+      n = (size_t)(d - origem);
   }
+  if (n >= tam) n = tam - 1;
+  memcpy(destino, origem, n);
   destino[n] = 0;
 }
 
