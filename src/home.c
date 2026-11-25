@@ -8520,14 +8520,14 @@ static void home_desenhar_(Uint32 agora) {
   static TexLookahead adiante;
   // Priority pre-warm Continue Watching and Upcoming rows so their artwork & logos load immediately
   for (int r = 0; r < nFileiras; r++) {
-    if (fileiras[r].tipo != FILEIRA_CONTINUAR && r > 2) continue;
+    if (fileiras[r].tipo != FILEIRA_CONTINUE && r > 2) continue;
     int lim = fileiras[r].n < 6 ? fileiras[r].n : 6;
     for (int k = 0; k < lim; k++) {
       int idx = fileiraItemIndice(&fileiras[r], k);
       const CatItem *ci = cat_item_exato(idx);
       const char *cam = arte_por_identidade(idx, 1);
       if (cam && cam[0]) (void)tex_obter_larg(cam, NV_DESTAQUE_W);
-      if (fileiras[r].tipo == FILEIRA_CONTINUAR && ci && ci->logo[0]) {
+      if (fileiras[r].tipo == FILEIRA_CONTINUE && ci && ci->logo[0]) {
         const char *uL = artehero_logo_sessao_larg(ci, NV_DESTAQUE_W * 0.7f);
         if (uL && uL[0]) (void)tex_obter_logo_larg(uL, NV_DESTAQUE_W * 0.7f);
       }
