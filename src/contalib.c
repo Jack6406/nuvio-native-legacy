@@ -14,11 +14,13 @@
 #include <pthread.h>
 
 extern void salvos_remover_remoto(const char *) NV_PERFIL_OPCIONAL;
+extern int trakt_ativo(void) NV_PERFIL_OPCIONAL;
 // Mach-O: weak_import indefinido nao resolve num link estatico (ver
-// perfisessao.h). Duble fraco para os fixtures que nao linkam salvos.c; a
-// definicao forte de salvos.c o sobrepoe no app.
+// perfisessao.h). Duble fraco para os fixtures que nao linkam salvos.c/trakt.c; a
+// definicao forte os sobrepoe no app.
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak)) void salvos_remover_remoto(const char *id) { (void)id; }
+__attribute__((weak)) int trakt_ativo(void) { return 0; }
 #endif
 
 // Nao esta em catalogo.h — ctxmenu.c e trakt.c ja a declaram assim. Repetir a
@@ -428,13 +430,21 @@ int contalib_aplicar_catalogo(void) {
   }
   printf("[contalib] biblioteca da conta aplicada: %d no catalogo (%d novos)\n",
          marcados, nFaltam);
+  if (nVistos > 0 && !(trakt_ativo && trakt_ativo()))
+    contalib_aplicar_vistos();
   return marcados;
 }
 
 void contalib_reconciliar(void) {
   const CatItem *c;
-  if (!aplicado || nItens < 1) return;
   if (cat_n() < 1) return;
+  if ((!aplicado || nItens < 1)) {
+    if (nVistos > 0 && cat_n() != marcaCatN && !(trakt_ativo && trakt_ativo())) {
+      contalib_aplicar_vistos();
+      marcaCatN = cat_n();
+    }
+    return;
+  }
   if (cat_n() != marcaCatN) { contalib_aplicar_catalogo(); return; }
   // Contagem igual nao prova catalogo igual: a descoberta pode republicar o
   // mesmo numero de titulos com outro conteudo. A marca e o ULTIMO item que

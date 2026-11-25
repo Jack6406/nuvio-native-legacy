@@ -194,7 +194,14 @@ static void montar(const CatItem *ci, const CtxInfoEstado *st, Modelo *m) {
     int emCurso = ci->progresso > 0 && ci->progresso < 100;
     if (serie && ci->temporada > 0 && ci->episodio > 0)
       snprintf(ep, sizeof ep, i18n("T%dE%d"), ci->temporada, ci->episodio);
-    if (emCurso && ci->restanteMin > 0) snprintf(resto, sizeof resto, i18n("%d min restantes"), ci->restanteMin);
+    if (emCurso && ci->restanteMin > 0) {
+      int rm = ci->restanteMin;
+      if (rm >= 60) {
+        int h = rm / 60, m = rm % 60;
+        if (m > 0) snprintf(resto, sizeof resto, "%dh %dm left", h, m);
+        else       snprintf(resto, sizeof resto, "%dh left", h);
+      } else snprintf(resto, sizeof resto, "%dm left", rm);
+    }
     else if (emCurso) snprintf(resto, sizeof resto, i18n("%d%% assistido"), ci->progresso);
     if (emCurso) {
       juntar(m->prog, sizeof m->prog, ep);

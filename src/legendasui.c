@@ -1144,7 +1144,7 @@ static float larguraSecundaria(void) { return NV_TELA_W - 120.0f; }
 
 static void corEstilo(int i, int *r, int *g, int *b) {
   static const unsigned char c[VIDEO_LEG_NCORES][3] = {
-    {255,255,255},{255,222,48},{64,224,112},{78,156,255},{255,80,80},{18,18,18}};
+    {255,255,255},{255,222,48},{64,224,112},{78,156,255},{255,80,80},{18,18,18},{207,220,232},{175,192,208}};
   if (i < 0 || i >= VIDEO_LEG_NCORES) i = 0;
   *r = c[i][0]; *g = c[i][1]; *b = c[i][2];
 }

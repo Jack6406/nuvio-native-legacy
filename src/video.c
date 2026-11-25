@@ -174,10 +174,10 @@ int video_dts_legenda_desenhar(double seconds, int delay, float x, float y,
 // onde o resto do modulo e stub. Deixa-los no lado da TV quebrava a ligacao da
 // build de desenvolvimento — que e onde a interface e conferida.
 const char *const VIDEO_LEG_CORES[VIDEO_LEG_NCORES] = {
-  "white", "yellow", "green", "blue", "red", "black"
+  "white", "yellow", "green", "blue", "red", "black", "white", "white"
 };
 const char *const VIDEO_LEG_CORES_PT[VIDEO_LEG_NCORES] = {
-  "Branco", "Amarelo", "Verde", "Azul", "Vermelho", "Preto"
+  "Branco", "Amarelo", "Verde", "Azul", "Vermelho", "Preto", "Cool Silver", "Cinema Slate"
 };
 
 static int extensaoLegenda(const char *ini, const char *fim) {
@@ -3854,7 +3854,7 @@ static void aplicarEstilo(void) {
     snprintf(b, sizeof b, "{\"mediaId\":\"%s\",\"charEdgeType\":\"%s\"}",
              midia, ed);
     chamar("setSubtitleCharacterEdge", b, soLog);
-    static const char *const colors[] = {"black", "white", "yellow", "green", "blue", "red"};
+    static const char *const colors[VIDEO_LEG_NCORES] = {"black", "white", "yellow", "green", "blue", "red", "white", "white"};
     int c = estilo.corBorda;
     if (c < 0 || c >= VIDEO_LEG_NCORES) c = 0;
     snprintf(b, sizeof b, "{\"mediaId\":\"%s\",\"charEdgeColor\":\"%s\"}", midia, colors[c]);

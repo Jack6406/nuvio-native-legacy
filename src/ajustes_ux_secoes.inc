@@ -1310,7 +1310,8 @@ static void ajcSobApp(int A) {
   logoapp_miniatura(logoapp_atual(), CR(76, 60, 140, 140), 1, 1.0f);
   { TxtLinha l = txt_linha(ajEstiloPxS(16 * ajc.s, 1), NV_VERSAO, AJ_TX); txt_desenhar(l, CX(146) - l.w * 0.5f, CY(224)); }
   ajcFoco(AJ_VERSAO_I, 60, 216, 172, 32, 10);
-  ajcTxt(textoValor(AJ_VERSAO_I), 11, 0, 60, 262, 180, 0.55f);
+  ajcTxt(textoValor(AJ_VERSAO_I), 11, 0, 60, 258, 180, 0.55f);
+  ajcTxt("Made by Sahil and Gemini", 11, 1, 52, 282, 196, 0.85f);
   CVID(272, 36, 332, 288, 24);
   CICON("aj_download", 292, 56, 24, 0.9f);
   ajcTxt(rotuloOpcao(AJ_ATUALIZAR), 13, 1, 326, 59, 260, 1);

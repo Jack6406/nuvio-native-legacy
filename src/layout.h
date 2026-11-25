@@ -532,7 +532,7 @@ int layout_modo_mobile(void);
 // 220 ms: acima do intervalo de repeticao do D-pad segurado (~130 ms nesta TV),
 // entao atravessar a fileira nao dispara nenhuma troca; e curto o bastante para
 // que parar no card e ver o fundo responder pareca imediato.
-#define NV_HERO_REPOUSO_MS    220
+#define NV_HERO_REPOUSO_MS    110
 // TETO DA ESPERA PELA ARTE DO HEROI, depois do repouso.
 //
 // A troca do heroi so acontecia com a textura nova JA DECODIFICADA, e enquanto

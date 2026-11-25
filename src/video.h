@@ -448,11 +448,11 @@ typedef struct {
   int corBorda;   // -1 unset (legacy outline); 0 Black, 1 White, 2 Yellow, 3 Green, 4 Blue, 5 Red
 } VideoLegendaEstilo;
 
-#define VIDEO_LEG_NCORES 6
+#define VIDEO_LEG_NCORES 8
 // A borda tem preto puro como padrao; as demais amostras usam a paleta do texto.
 static inline unsigned video_legenda_borda_rgb(int indice) {
   static const unsigned cores[VIDEO_LEG_NCORES] = {
-    0x000000u, 0xffffffu, 0xffde30u, 0x40e070u, 0x4e9cffu, 0xff5050u
+    0x000000u, 0xffffffu, 0xffde30u, 0x40e070u, 0x4e9cffu, 0xff5050u, 0xcfdce8u, 0xafc0d0u
   };
   return cores[indice >= 0 && indice < VIDEO_LEG_NCORES ? indice : 0];
 }

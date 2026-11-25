@@ -2757,13 +2757,20 @@ static int minutosAssistidosAprox(const SPLinha *l) {
 }
 
 static void restanteTexto(char *dst, size_t tam, const SPLinha *l) {
-  if (l->temporada > 0 && l->episodio > 0 && l->restanteMin > 0)
-    snprintf(dst, tam, i18n("T%dE%d · %d min restantes"),
-             l->temporada, l->episodio, l->restanteMin);
+  char tempo[32];
+  if (l->restanteMin >= 60) {
+    int h = l->restanteMin / 60, m = l->restanteMin % 60;
+    if (m > 0) snprintf(tempo, sizeof tempo, "%dh %dm left", h, m);
+    else       snprintf(tempo, sizeof tempo, "%dh left", h);
+  } else if (l->restanteMin > 0) {
+    snprintf(tempo, sizeof tempo, "%dm left", l->restanteMin);
+  } else tempo[0] = 0;
+  if (l->temporada > 0 && l->episodio > 0 && tempo[0])
+    snprintf(dst, tam, "S%dE%d · %s", l->temporada, l->episodio, tempo);
   else if (l->temporada > 0 && l->episodio > 0)
     snprintf(dst, tam, i18n("T%dE%d · retomar"), l->temporada, l->episodio);
-  else if (l->restanteMin > 0)
-    snprintf(dst, tam, i18n("%d min restantes"), l->restanteMin);
+  else if (tempo[0])
+    snprintf(dst, tam, "%s", tempo);
   else
     snprintf(dst, tam, "%s", i18n("Retomar"));
 }
@@ -4632,8 +4639,14 @@ static void desenhaAtvLinha(int i, float dx, float y, float a, Uint32 agora) {
   // QUANDO, e o que o cartao da home tambem diria: "faltam 12 min", "aos 18 %".
   socialvis_quando(e->quando, q, sizeof q);
   linha[0] = 0;
-  if (e->acao == SV_AGORA && e->restanteMin > 0)
-    snprintf(linha, sizeof linha, i18n("faltam %d min"), e->restanteMin);
+  if (e->acao == SV_AGORA && e->restanteMin > 0) {
+    int rm = e->restanteMin;
+    if (rm >= 60) {
+      int h = rm / 60, m = rm % 60;
+      if (m > 0) snprintf(linha, sizeof linha, "%dh %dm left", h, m);
+      else       snprintf(linha, sizeof linha, "%dh left", h);
+    } else snprintf(linha, sizeof linha, "%dm left", rm);
+  }
   // A NOTA DO TRACKER, quando houve: a linha diz o que a pessoa achou, nao so
   // que viu. (A saida do player, "parou aos 18%", nao chega mais ao feed.)
   else if (e->nota > 0)

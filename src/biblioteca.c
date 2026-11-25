@@ -273,8 +273,8 @@ static int bibTinta2(void) { return 205; }
 // (CatItem.naLista): a watchlist do Trakt, posta ali pela descoberta, e a
 // biblioteca da CONTA (sync_pull_library), posta ali por contalib.c.
 // "Coleção" = TENHO, e so o Trakt tem. "Listas" = conjuntos, nao titulos.
-enum { MODO_SALVOS, MODO_NUVEM, MODO_LISTAS, BIB_N_MODOS };
-static const char *ROT_MODO[BIB_N_MODOS] = { "Salvos", "Coleção", "Listas" };
+enum { MODO_SALVOS, MODO_VISTOS, MODO_NUVEM, MODO_LISTAS, BIB_N_MODOS };
+static const char *ROT_MODO[BIB_N_MODOS] = { "Salvos", "Watched", "Coleção", "Listas" };
 
 // Seletor "Tipo": os mesmos valores do web.
 enum { TIPO_TODOS, TIPO_FILME, TIPO_SERIE, BIB_N_TIPOS };
@@ -320,7 +320,7 @@ static int nFiltro = 0;
 static int totalModo = 0;
 // Quantos titulos cada modo de titulos tem (Salvos, Colecao), para a contagem
 // do seletor segmentado. Refeito em reconstruir(), nunca por quadro.
-static int contaModo[2];
+static int contaModo[3];
 static Foco foco;
 
 void biblioteca_teste_foco(int *fileira, int *coluna, int *acao) {
@@ -697,7 +697,10 @@ static int contarModo(int m) {
   for (int i = 0; i < n; i++) {
     const CatItem *ci = cat_item(i);
     if (!ci) continue;
-    if (!(m == MODO_SALVOS ? salvoNaFonte(ci) : (ci->naColecao || comprado[i]))) continue;
+    int ok = m == MODO_SALVOS ? salvoNaFonte(ci)
+           : m == MODO_VISTOS ? cat_visto(ci)
+           : (ci->naColecao || comprado[i]);
+    if (!ok) continue;
     if (jaNoFiltro(ci->imdb)) continue;
     if (nContados < CAT_MAX) contados[nContados++] = i;
     total++;
@@ -706,6 +709,11 @@ static int contarModo(int m) {
     for (int k = salvos_n() - 1; k >= 0; k--) {
       const SalvoItem *sv = salvos_item(k);
       if (sv && sv->id[0] && cat_indice_por_imdb(sv->id) < 0) total++;
+    }
+  else if (m == MODO_VISTOS)
+    for (int k = salvos_n() - 1; k >= 0; k--) {
+      const SalvoItem *sv = salvos_item(k);
+      if (sv && sv->id[0] && cat_indice_por_imdb(sv->id) < 0 && vistoFiltro(-k - 1)) total++;
     }
   return total;
 }
@@ -723,7 +731,8 @@ static void reconstruirFonte(int novaFonte) {
   }
   if (n > CAT_MAX) n = CAT_MAX;
   contaModo[0] = contarModo(MODO_SALVOS);
-  contaModo[1] = contarModo(MODO_NUVEM);
+  contaModo[1] = contarModo(MODO_VISTOS);
+  contaModo[2] = contarModo(MODO_NUVEM);
   nFiltro = 0;
   totalModo = 0;
   nContados = 0;
@@ -743,6 +752,7 @@ static void reconstruirFonte(int novaFonte) {
     // rede a cada descoberta, entao a posicao 3 de hoje e outro titulo amanha —
     // a marca "salvo" migrava sozinha para um filme que ninguem salvou.
     int entra = (modo == MODO_SALVOS) ? salvoNaFonte(ci)
+              : (modo == MODO_VISTOS) ? cat_visto(ci)
                                       : (ci->naColecao || comprado[i]);
     if (!entra) continue;
     // UM CARTAZ POR TITULO. O mesmo titulo vive em varias fileiras, cada uma
@@ -765,10 +775,11 @@ static void reconstruirFonte(int novaFonte) {
   // agora nao aparece" (issue do Owlphibia29). O painel de Salvos ja desenhava
   // da lista local; a Biblioteca agora tambem. Os mais novos primeiro: a lista
   // local e na ordem de insercao, e quem acabou de salvar procura o que salvou.
-  if (modo == MODO_SALVOS && ajustes_fonte_traz_locais(fonteSalvos)) {
+  if ((modo == MODO_SALVOS && ajustes_fonte_traz_locais(fonteSalvos)) || modo == MODO_VISTOS) {
     for (int k = salvos_n() - 1; k >= 0 && nFiltro < (int)(sizeof filtro / sizeof filtro[0]); k--) {
       const SalvoItem *s = salvos_item(k);
       if (!s || !s->id[0] || cat_indice_por_imdb(s->id) >= 0) continue;
+      if (modo == MODO_VISTOS && !vistoFiltro(-k - 1)) continue;
       totalModo++;
       locaisFora++;
       if (tipo == TIPO_FILME && ehSerieSalvo(s)) { exclTipo++; continue; }
@@ -805,10 +816,10 @@ static void reconstruirFonte(int novaFonte) {
   // Uma linha por montagem, nao por quadro: distingue filtro de janela/rolagem.
   // As fontes remotas ja chegam fundidas em naLista; nao somar seus logs.
   printf("[biblioteca] perfil=%d modo=%d tipo=%d ocultar=%d exibicao=%d "
-         "salvos=%d colecao=%d total=%d cat_unicos=%d locais_fora=%d "
+         "salvos=%d vistos=%d colecao=%d total=%d cat_unicos=%d locais_fora=%d "
          "excl_tipo=%d excl_meta=%d grade=%d colunas=%d linhas=%d teto_linhas=%d\n",
          perfis_ativo(), modo, tipo, ajustes_ocultar_nao_lancados(), exibicao,
-         contaModo[0], contaModo[1], totalModo, nContados, locaisFora,
+         contaModo[0], contaModo[1], contaModo[2], totalModo, nContados, locaisFora,
          exclTipo, exclMeta, nCelulas, colunas(), nLinhas(), BIB_MAX_LINHAS);
   fflush(stdout);
 }
@@ -1763,6 +1774,7 @@ static void desenhaVazio(void) {
         ? simkl_aviso_sem_vinculo(ajustes_salvos_no_simkl()) : NULL;
     l1 = semSimkl ? semSimkl
         : totalModo ? "Nenhum título neste filtro"
+        : modo == MODO_VISTOS ? "No watched titles yet"
         : modo == MODO_NUVEM ? "Sua coleção aparece aqui" : "Sua próxima sessão começa aqui";
     l2 = semSimkl
         ? "O + salva no Plan to Watch do Simkl, e ele ainda não está vinculado nesta TV."
@@ -2301,6 +2313,7 @@ static void desenhaCabecalho(void) {
                              : fonte == FONTE_SIMKL ? "SIMKL"
                              : fonte == FONTE_FIXADAS ? "LOCAL"
                              : "TRAKT")
+      : modo == MODO_VISTOS ? (trakt_ativo() ? "TRAKT" : contalib_tem_conta() ? seloCaixaAlta("Conta") : "LOCAL")
       : modo == MODO_NUVEM ? (trakt_ativo() ? "TRAKT" : "LOCAL")
       : fonteSalvos == AJ_SALVOS_LOCAL && contalib_tem_conta() ? seloCaixaAlta("Conta")
       : ajustes_fonte_selo(fonteSalvos);
@@ -2354,6 +2367,7 @@ static void desenhaResumo(void) {
     snprintf(resumo, sizeof resumo, "%d %s   ·   %s", nFiltro,
              i18n(nFiltro == 1 ? "título" : "títulos"),
              i18n(modo == MODO_SALVOS ? "Sua lista para assistir"
+                : modo == MODO_VISTOS ? "Watched history"
                                       : "Sua coleção no Trakt"));
   }
   // O TETO DA GRADE NUNCA E CALADO. Com a exibicao de lista (uma coluna) a

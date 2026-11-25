@@ -1016,15 +1016,15 @@ static const char *V_RESOLUCAO[] = { "Automática", "1080p", "4K (experimental)"
 static const char *V_AMPLIAR_UI[] = { "Pela TV", "Pelo app (4K)", "Automático" };
 static const char *V_AMPLIACAO_ALGO[] = { "Automático", "SGSR", "SGSR nítido", "FSR 1 (EASU+RCAS)", "Lanczos", "Bilinear" };
 
-static const char *V_LEG_COR[] = { "Branco", "Amarelo", "Verde", "Azul", "Vermelho", "Preto" };
-static const char *V_LEG_COR_BORDA[] = { "Preto", "Branco", "Amarelo", "Verde", "Azul", "Vermelho" };
+static const char *V_LEG_COR[] = { "Branco", "Amarelo", "Verde", "Azul", "Vermelho", "Preto", "Cool Silver", "Cinema Slate" };
+static const char *V_LEG_COR_BORDA[] = { "Preto", "Branco", "Amarelo", "Verde", "Azul", "Vermelho", "Cool Silver", "Cinema Slate" };
 static const char *V_LEG_FUNDO[] = { "Nenhum", "Escuro 25%", "Escuro 50%", "Escuro 75%", "Escuro 100%" };
 static const char *V_LEG_BORDA[] = { "Nenhuma", "Contorno", "Sombra" };
 static const char *V_LEG_OPAC[] = { "100%", "75%", "50%", "25%" };
 static const char *V_LEG_POS[] = { "1", "2", "3", "4", "5", "6", "7", "8" };
 static const char *V_LEG2_FONTE[] = { "Igual à principal", "Inter", "LG Display", "Droid Sans", "Montserrat", "Roboto", "Atkinson Hyperlegible Next", "JetBrains Sans" };
 static const char *V_LEG2_OPAC[] = { "Igual à principal", "100%", "75%", "50%", "25%" };
-static const char *V_LEG2_COR_BORDA[] = { "Igual à principal", "Preto", "Branco", "Amarelo", "Verde", "Azul", "Vermelho" };
+static const char *V_LEG2_COR_BORDA[] = { "Igual à principal", "Preto", "Branco", "Amarelo", "Verde", "Azul", "Vermelho", "Cool Silver", "Cinema Slate" };
 static const char *V_LEG2_NEGRITO[] = { "Igual à principal", "Ligado", "Desligado" };
 static const char *V_LEG2_POSICAO[] = { "Automático", "1", "2", "3", "4", "5", "6", "7", "8" };
 _Static_assert(sizeof V_FONTE_UI / sizeof *V_FONTE_UI == TXT_FAMILIA_N,

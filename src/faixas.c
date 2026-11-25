@@ -69,7 +69,7 @@ static float animTopo;
 // As cores das legendas, na ordem de VIDEO_LEG_CORES (a mesma de player.c).
 static void corLegenda(int i, int *r, int *g, int *b) {
   static const unsigned char c[VIDEO_LEG_NCORES][3] = {
-    {255,255,255},{255,222,48},{64,224,112},{78,156,255},{255,80,80},{18,18,18}};
+    {255,255,255},{255,222,48},{64,224,112},{78,156,255},{255,80,80},{18,18,18},{207,220,232},{175,192,208}};
   if (i < 0 || i >= VIDEO_LEG_NCORES) i = 0;
   *r = c[i][0]; *g = c[i][1]; *b = c[i][2];
 }
@@ -648,8 +648,9 @@ static void valorEstilo(int linha, char *dst, size_t tam) {
     // a faixa que o player da TV desenha segue o peso do aparelho.
     case 8: snprintf(dst, tam, "%s", i18n(e->negrito ? "Ligado" : "Desligado")); break;
     case EST_COR_BORDA: {
+      static const int bordaParaCor[VIDEO_LEG_NCORES] = { 5, 0, 1, 2, 3, 4, 6, 7 };
       int c = e->corBorda >= 0 && e->corBorda < VIDEO_LEG_NCORES ? e->corBorda : 0;
-      snprintf(dst, tam, "%s", VIDEO_LEG_CORES_PT[c ? c - 1 : VIDEO_LEG_NCORES - 1]);
+      snprintf(dst, tam, "%s", VIDEO_LEG_CORES_PT[bordaParaCor[c]]);
       break; }
     default: dst[0] = 0; break;   // "Restaurar padrao" e acao, nao valor
   }

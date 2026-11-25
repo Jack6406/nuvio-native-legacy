@@ -3669,7 +3669,7 @@ static void heroAquecerVizinhos(Uint32 agora) {
   int n = heroNLista(), pos, d;
   if (heroAtual != heroVizBase) { heroVizBase = heroAtual; heroVizFeito = 0; heroVizTentaEm = 0; }
   if (n < 2 || heroVizFeito == 3) return;
-  if (heroVizTentaEm && agora - heroVizTentaEm < 250) return;
+  if (heroVizTentaEm && agora - heroVizTentaEm < 100) return;
   heroVizTentaEm = agora ? agora : 1;
   pos = heroPosDe(heroAtual);
   if (pos < 0) return;
@@ -4574,8 +4574,16 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
   // no outro caso ele vai para o fim da linha de meta.
   char destaque[64];
   destaque[0] = 0;
-  if (contHero) snprintf(destaque, sizeof destaque, i18n("CONTINUAR DE ONDE PAROU  \xc2\xb7  %d MIN"),
-                         ci->restanteMin);
+  if (contHero) {
+    int rm = ci->restanteMin;
+    if (rm >= 60) {
+      int h = rm / 60, m = rm % 60;
+      if (m > 0) snprintf(destaque, sizeof destaque, "CONTINUE WATCHING  \xc2\xb7  %dh %dm left", h, m);
+      else       snprintf(destaque, sizeof destaque, "CONTINUE WATCHING  \xc2\xb7  %dh left", h);
+    } else {
+      snprintf(destaque, sizeof destaque, "CONTINUE WATCHING  \xc2\xb7  %dm left", rm);
+    }
+  }
   else if (seguirHero) {
     // O FUTURO DIZ QUANDO (issue #127): "ESTREIA 21 OUT", nao o "A SEGUIR" do
     // episodio que ja pode tocar. Mesma decisao e mesma data do card

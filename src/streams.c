@@ -1264,8 +1264,16 @@ static long qualidade(const Stream *s, int modo) {
   q += s->altura / 10;
   if (s->mp4) q += 300;
   if (s->dolbyAtmos && ajustes_dolby_atmos()) q += 200;
-  // Tipo de lancamento, bitrate, audio, codec e idioma, DENTRO do degrau: um
-  // REMUX 1080p passa do WEB-DL 1080p, nunca de um 4K (fontenota_somar).
+  // 1080p Fire TV auto-play preference: favor largest 1080p stream on auto-play
+  // (manual picks bypass auto-play scoring and always play the selected stream).
+  if (s->altura >= 1000 && s->altura < 1440) q += 15000L;
+  { unsigned long long mb = tamanhoMBFonte(s);
+    if (mb > 0) {
+      long tamPts = (long)(mb / 16ULL);
+      if (tamPts > 4000L) tamPts = 4000L;
+      q += tamPts;
+    } }
+  // Tipo de lancamento, bitrate, audio, codec e idioma, DENTRO do degrau.
   { FonteNota nt; notaDe(s, &nt); q = fontenota_somar(q, &nt, 1); }
   return q;
 }
