@@ -296,6 +296,17 @@ static const char *ROT_FONTE[BIB_N_FONTES] =
 // lista aberta por cima.
 enum { EST_TITULOS, EST_LISTAS, EST_ITENS };
 
+enum {
+  GEN_ALL, GEN_ACTION, GEN_ADVENTURE, GEN_ANIMATION, GEN_COMEDY, GEN_CRIME,
+  GEN_DOC, GEN_DRAMA, GEN_FAMILY, GEN_FANTASY, GEN_HORROR, GEN_MYSTERY,
+  GEN_ROMANCE, GEN_SCIFI, GEN_THRILLER, GEN_WAR, BIB_N_GENS
+};
+static const char *ROT_GEN[BIB_N_GENS] = {
+  "All", "Action", "Adventure", "Animation", "Comedy", "Crime",
+  "Documentary", "Drama", "Family", "Fantasy", "Horror", "Mystery",
+  "Romance", "Sci-Fi", "Thriller", "War"
+};
+static int genFiltro = GEN_ALL;
 static int modo = MODO_SALVOS;
 static int tipo = TIPO_TODOS;
 static int ordem = ORD_ADICIONADOS;
@@ -717,6 +728,56 @@ static int salvoNaFonte(const CatItem *ci) {
   return ci->naLista && (ci->listaFontes & (1u << fonteSalvos));
 }
 
+static int bibContemCI(const char *h, const char *n) {
+  size_t nl;
+  if (!h || !n || !n[0]) return 0;
+  nl = strlen(n);
+  for (; *h; h++) if (!strncasecmp(h, n, nl)) return 1;
+  return 0;
+}
+
+static int casaGenero(const char *g) {
+  if (genFiltro == GEN_ALL) return 1;
+  if (!g || !g[0]) return 0;
+  const char *alvo = ROT_GEN[genFiltro];
+  if (genFiltro == GEN_SCIFI)
+    return bibContemCI(g, "Sci-Fi") || bibContemCI(g, "Science Fiction") || bibContemCI(g, "Ficção");
+  return bibContemCI(g, alvo);
+}
+
+// Fast O(1) hash set of catalog IDs so 4,260+ library items never do O(N^2) cat_indice_por_imdb scans
+#define BIB_HASH_SLOTS 8192
+static const char *bibCatHash[BIB_HASH_SLOTS];
+static unsigned bibHashStr(const char *s) {
+  unsigned h = 2166136261u;
+  for (; *s; s++) { h ^= (unsigned char)*s; h *= 16777619u; }
+  return h;
+}
+static void bibCatHashMontar(int n) {
+  memset(bibCatHash, 0, sizeof bibCatHash);
+  for (int i = 0; i < n; i++) {
+    const CatItem *c = cat_item(i);
+    if (!c || !c->imdb[0]) continue;
+    unsigned h = bibHashStr(c->imdb) & (BIB_HASH_SLOTS - 1);
+    int tries = 0;
+    while (bibCatHash[h] && tries++ < 32) {
+      if (!strcmp(bibCatHash[h], c->imdb)) break;
+      h = (h + 1) & (BIB_HASH_SLOTS - 1);
+    }
+    if (!bibCatHash[h]) bibCatHash[h] = c->imdb;
+  }
+}
+static int bibNoCatalogo(const char *id) {
+  if (!id || !id[0]) return 0;
+  unsigned h = bibHashStr(id) & (BIB_HASH_SLOTS - 1);
+  int tries = 0;
+  while (bibCatHash[h] && tries++ < 32) {
+    if (!strcmp(bibCatHash[h], id)) return 1;
+    h = (h + 1) & (BIB_HASH_SLOTS - 1);
+  }
+  return 0;
+}
+
 static int modoEhSalvo(int m) { return m == MODO_SALVOS || m == MODO_MOVIES || m == MODO_SERIES; }
 
 static int modoAceitaSerie(int m, int isSeries) {
@@ -742,7 +803,7 @@ static int contarModo(int m) {
   if (modoEhSalvo(m) && ajustes_fonte_traz_conta(fonteSalvos)) {
     for (int k = 0; k < contalib_n(); k++) {
       const ContaLibItem *cl = contalib_item(k);
-      if (!cl || !cl->id[0] || cat_indice_por_imdb(cl->id) >= 0) continue;
+      if (!cl || !cl->id[0] || bibNoCatalogo(cl->id)) continue;
       if (!modoAceitaSerie(m, !strcmp(cl->tipo, "series"))) continue;
       total++;
     }
@@ -750,14 +811,14 @@ static int contarModo(int m) {
   if (modoEhSalvo(m) && ajustes_fonte_traz_locais(fonteSalvos)) {
     for (int k = salvos_n() - 1; k >= 0; k--) {
       const SalvoItem *sv = salvos_item(k);
-      if (!sv || !sv->id[0] || cat_indice_por_imdb(sv->id) >= 0) continue;
+      if (!sv || !sv->id[0] || bibNoCatalogo(sv->id)) continue;
       if (!modoAceitaSerie(m, ehSerieSalvo(sv))) continue;
       total++;
     }
   } else if (m == MODO_VISTOS) {
     for (int k = salvos_n() - 1; k >= 0; k--) {
       const SalvoItem *sv = salvos_item(k);
-      if (sv && sv->id[0] && cat_indice_por_imdb(sv->id) < 0 && vistoFiltro(-k - 1)) total++;
+      if (sv && sv->id[0] && !bibNoCatalogo(sv->id) && vistoFiltro(-k - 1)) total++;
     }
   }
   return total;
@@ -775,6 +836,7 @@ static void reconstruirFonte(int novaFonte) {
     if (gmtime_r(&agora, &tmv)) anoAtual = tmv.tm_year + 1900;
   }
   if (n > CAT_MAX) n = CAT_MAX;
+  bibCatHashMontar(n);
   contaModo[0] = contarModo(MODO_SALVOS);
   contaModo[1] = contarModo(MODO_MOVIES);
   contaModo[2] = contarModo(MODO_SERIES);
@@ -792,29 +854,32 @@ static void reconstruirFonte(int novaFonte) {
     if (nContados < CAT_MAX) contados[nContados++] = i;
     totalModo++;
     if (anoAtual && nlanc_meta_futuro(ci->meta, anoAtual)) { exclMeta++; continue; }
+    if (!casaGenero(ci->genero)) { exclTipo++; continue; }
     if (nFiltro < (int)(sizeof filtro / sizeof filtro[0])) filtro[nFiltro++] = i;
   }
   // Include Nuvio Account library items even if CAT_MAX was full!
   if (modoEhSalvo(modo) && ajustes_fonte_traz_conta(fonteSalvos)) {
     for (int k = 0; k < contalib_n() && nFiltro < (int)(sizeof filtro / sizeof filtro[0]); k++) {
       const ContaLibItem *cl = contalib_item(k);
-      if (!cl || !cl->id[0] || cat_indice_por_imdb(cl->id) >= 0) continue;
+      if (!cl || !cl->id[0] || bibNoCatalogo(cl->id)) continue;
       if (!modoAceitaSerie(modo, !strcmp(cl->tipo, "series"))) continue;
       totalModo++;
       locaisFora++;
       if (anoAtual && nlanc_meta_futuro(cl->meta, anoAtual)) { exclMeta++; continue; }
+      if (!casaGenero(cl->genero)) { exclTipo++; continue; }
       filtro[nFiltro++] = -(BIB_CONTALIB_BASE + k);
     }
   }
   if ((modoEhSalvo(modo) && ajustes_fonte_traz_locais(fonteSalvos)) || modo == MODO_VISTOS) {
     for (int k = salvos_n() - 1; k >= 0 && nFiltro < (int)(sizeof filtro / sizeof filtro[0]); k--) {
       const SalvoItem *s = salvos_item(k);
-      if (!s || !s->id[0] || cat_indice_por_imdb(s->id) >= 0) continue;
+      if (!s || !s->id[0] || bibNoCatalogo(s->id)) continue;
       if (modo == MODO_VISTOS && !vistoFiltro(-k - 1)) continue;
       if (modoEhSalvo(modo) && !modoAceitaSerie(modo, ehSerieSalvo(s))) continue;
       totalModo++;
       locaisFora++;
       if (anoAtual && nlanc_meta_futuro(s->meta, anoAtual)) { exclMeta++; continue; }
+      if (genFiltro != GEN_ALL) { exclTipo++; continue; }
       filtro[nFiltro++] = -k - 1;
     }
   }
@@ -1273,8 +1338,8 @@ static void biblioteca_evento_(const SDL_Event *e) {
             if (idx >= 0) pedido = idx;
           }
         }
-        else if (pickSel == 1) { ordem = (ordem + 1) % BIB_N_ORD;   reconstruir(); }
-        else                     alternarExibicao();
+        else if (pickSel == 1) { genFiltro = (genFiltro + 1) % BIB_N_GENS; reconstruir(); }
+        else                   { ordem = (ordem + 1) % BIB_N_ORD;          reconstruir(); }
       }
       foco.fileira = BIB_FIL_PICK; foco.coluna = pickSel;
     }
@@ -1343,12 +1408,20 @@ static void biblioteca_atualizar_(float dt, Uint32 agora) {
   }
   linhas = nLinhas();
   if (linhas > BIB_MAX_LINHAS) linhas = BIB_MAX_LINHAS;
-  for (r = 0; r < linhas; r++)
-    for (c = 0; c < colunas() && c < BIB_COLUNAS_MAX; c++) {
-      float alvo = focus_indice(&foco, ini + r, c) ? 1.0f : 0.0f;
-      animFoco[r][c] = anim_mola(animFoco[r][c], alvo, dt,
-                                 alvo > animFoco[r][c] ? NV_MOLA_FOCO : NV_MOLA_DESFOCO);
-    }
+  { float passo = passoLinha();
+    int r0 = passo > 1.0f ? (int)(scrollY / passo) - 2 : 0;
+    int r1 = passo > 1.0f ? (int)((scrollY + NV_TELA_H) / passo) + 2 : linhas - 1;
+    if (r0 < 0) r0 = 0;
+    if (r1 >= linhas) r1 = linhas - 1;
+    int nc = colunas();
+    if (nc > BIB_COLUNAS_MAX) nc = BIB_COLUNAS_MAX;
+    for (r = r0; r <= r1; r++)
+      for (c = 0; c < nc; c++) {
+        float alvo = focus_indice(&foco, ini + r, c) ? 1.0f : 0.0f;
+        if (alvo == 0.0f && animFoco[r][c] < 0.001f) { animFoco[r][c] = 0.0f; continue; }
+        animFoco[r][c] = anim_mola(animFoco[r][c], alvo, dt,
+                                   alvo > animFoco[r][c] ? NV_MOLA_FOCO : NV_MOLA_DESFOCO);
+      } }
 
   // Rola o MINIMO para a linha focada caber inteira na area util. Com o foco no
   // cabecalho o alvo e 0 — voltar ao topo faz parte de voltar para a barra.
@@ -1679,8 +1752,8 @@ static void pickerTexto(int p, const char **rot, const char **val) {
     *rot = p == 0 ? "Fonte" : p == 1 ? "Exibição" : "Listas públicas";
     *val = p == 0 ? ROT_FONTE[fonte] : p == 1 ? ROT_VIS[exibicao] : "Procurar";
   } else {
-    *rot = p == 0 ? "Random" : p == 1 ? "Sort" : "Display";
-    *val = p == 0 ? "Movie" : p == 1 ? ROT_ORD[ordem] : ROT_VIS[exibicao];
+    *rot = p == 0 ? "Random" : p == 1 ? "Genre" : "Sort";
+    *val = p == 0 ? "Movie" : p == 1 ? ROT_GEN[genFiltro] : ROT_ORD[ordem];
   }
 }
 
@@ -1898,42 +1971,7 @@ static void desenhaCartaz(const CatItem *ci, GfxRect base, float f, float a,
     if (ajustes_vidro()) gfx_vidro_cartao(card, raio, f, a);
     else gfx_anel(card, raio, NV_BIB_POSTER_BORDA, ar, ag, ab, f * a);
   }
-  // Echo-style bottom pill overlay: Genre · ★ Rating (monochrome white star)
-  if (ci && (ci->nota > 0 || ci->genero[0])) {
-    char pill[64] = "", gen[32] = "";
-    if (ci->genero[0]) {
-      const char *p = ci->genero;
-      while (*p) {
-        const char *sep = strstr(p, " · ");
-        size_t len = sep ? (size_t)(sep - p) : strlen(p);
-        char seg[32];
-        if (len >= sizeof seg) len = sizeof seg - 1;
-        memcpy(seg, p, len); seg[len] = 0;
-        if (seg[0] && strcasecmp(seg, "Filme") && strcasecmp(seg, "Movie") &&
-            strcasecmp(seg, "Programa de TV") && strcasecmp(seg, "TV Show") &&
-            strcasecmp(seg, "Series") && strcasecmp(seg, "Série")) {
-          snprintf(gen, sizeof gen, "%s", seg);
-          break;
-        }
-        if (!sep) break;
-        p = sep + 4;
-      }
-    }
-    if (gen[0] && ci->nota > 0)
-      snprintf(pill, sizeof pill, "%s · \xe2\x98\x85 %.1f", gen, ci->nota / 10.0f);
-    else if (ci->nota > 0)
-      snprintf(pill, sizeof pill, "\xe2\x98\x85 %.1f", ci->nota / 10.0f);
-    else if (gen[0])
-      snprintf(pill, sizeof pill, "%s", gen);
-    if (pill[0]) {
-      TxtLinha pl = txt_linha_corta(TXT_CAPTION2, pill, 238, 242, 248, 255, card.w - 36.0f);
-      float pw = (float)pl.w + 22.0f, ph = (float)pl.h + 10.0f;
-      float px = card.x + (card.w - pw) * 0.5f;
-      float py = card.y + card.h - ph - 12.0f;
-      gfx_cor((GfxRect){ px, py, pw, ph }, ph * 0.5f, 0.06f, 0.07f, 0.10f, 0.78f * a * aArte);
-      txt_desenhar_alpha(pl, px + 11.0f, py + 5.0f, a * aArte);
-    }
-  }
+  /* Clean poster artwork only — no extra text overlay pill */
   // Selo de assistido: o da Home (badges_selo_visto), no cartaz JA ESCALADO,
   // entao acompanha o foco de 1.08. Salvo local fora do catalogo chega como
   // CatItem temporario com imdb/tipo: o historico responde igual.

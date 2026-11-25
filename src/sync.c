@@ -1137,13 +1137,35 @@ static void empurrarAjustes(void) {
     printf("[sync] ajustes locais pendentes, mas sem blob da conta para costurar: nada enviado\n");
     return;
   }
-  if (ajustes_mesclar_blob(ajustesBlob, &mesclado) <= 0 || !mesclado) {
-    // Nothing differs from the freshly pulled account blob: skip the upload.
-    free(mesclado);
-    sujoAjustes = 0;
-    nv_perfil_sessao_destravar();
-    return;
-  }
+  { int nDiff = ajustes_mesclar_blob(ajustesBlob, &mesclado);
+    char arteBuf[32768];
+    int nArte = arteesc_exportar_json(arteBuf, sizeof arteBuf);
+    if ((nDiff <= 0 || !mesclado) && nArte <= 0) {
+      free(mesclado);
+      sujoAjustes = 0;
+      nv_perfil_sessao_destravar();
+      return;
+    }
+    if (!mesclado) mesclado = strdup(ajustesBlob);
+    if (mesclado && nArte > 0) {
+      char *fim = strrchr(mesclado, '}');
+      if (fim) {
+        size_t baseLen = (size_t)(fim - mesclado);
+        const char *oldKey = strstr(mesclado, "\"artwork_choices_v1\"");
+        if (!oldKey) {
+          size_t extra = strlen("\"artwork_choices_v1\":") + (size_t)nArte + 4;
+          char *out = (char *)malloc(baseLen + extra + 2);
+          if (out) {
+            int vazio = 1;
+            for (size_t q = 0; q < baseLen; q++) if (mesclado[q] != '{' && (unsigned char)mesclado[q] > ' ') { vazio = 0; break; }
+            memcpy(out, mesclado, baseLen);
+            snprintf(out + baseLen, extra + 2, "%s\"artwork_choices_v1\":%s}", vazio ? "" : ",", arteBuf);
+            free(mesclado);
+            mesclado = out;
+          }
+        }
+      }
+    } }
   nv_perfil_sessao_destravar();
   jsw_iniciar(&w);
   jsw_obj_ini(&w);
@@ -1877,6 +1899,7 @@ void sync_passo(unsigned agoraMs) {
   spMarcar(SP_REMONTAR); }
   int blobAplicado = 0, ajustesMudaram = 0;
   if (temAjustesBlob && ajustesBlob && !ajustes_edicao_perfil()) {
+    arteesc_importar_json(ajustesBlob);
     ajustesMudaram = ajustes_aplicar_blob(ajustesBlob);
     blobAplicado = 1;
     // O BLOB NAO E LIBERADO AQUI (mudou em #85): ele e a base da costura que
@@ -1892,6 +1915,7 @@ void sync_passo(unsigned agoraMs) {
   { static unsigned relatado;
     if (ajustesBlob && ajustesBlobGeracao != relatado) {
       relatado = ajustesBlobGeracao;
+      arteesc_importar_json(ajustesBlob);
       ajustes_tmdb_idioma_relatar(ajustesBlob);
       // #378: PROTEGIDO, o blob nao e aplicado — mas os idiomas de legenda e
       // audio da conta nao sao ajuste desta TV: sao o que "Da conta" quer
@@ -2484,3 +2508,5 @@ void sync_esquecer_usuario(void) {
 }
 
 void        sync_encerrar(void)    { }
+
+void sync_marcar_ajustes_externo(void) { sujoAjustes = 1; }

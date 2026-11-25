@@ -1,7 +1,15 @@
 // A arte escolhida a mao, por titulo e por perfil. Ver arteescolha.h.
 #include "arteescolha.h"
 #include "dados.h"
+#include "js.h"
+#include "jsw.h"
 #include <stdio.h>
+
+#if defined(__GNUC__) || defined(__clang__)
+extern void sync_marcar_ajustes_externo(void) __attribute__((weak));
+#else
+extern void sync_marcar_ajustes_externo(void);
+#endif
 #include <stdlib.h>
 #include <string.h>
 
@@ -213,6 +221,7 @@ static int definir(const char *id, int qual, const char *url) {
   }
   reindexar();
   gravar();
+  if (sync_marcar_ajustes_externo) sync_marcar_ajustes_externo();
   return 1;
 }
 
@@ -222,4 +231,90 @@ int arteesc_definir_logo(const char *id, const char *url)  { return definir(id, 
 int arteesc_n(void) {
   if (!carregado) arteesc_iniciar();
   return nTab;
+}
+
+int arteesc_exportar_json(char *dst, size_t tam) {
+  Jsw w;
+  int i;
+  if (!dst || tam < 4) return 0;
+  if (!carregado) arteesc_iniciar();
+  dst[0] = 0;
+  if (nTab < 1) return 0;
+  jsw_iniciar(&w);
+  jsw_obj_ini(&w);
+  for (i = 0; i < nTab; i++) {
+    if (!tab[i].id[0] || (!tab[i].fundo[0] && !tab[i].logo[0])) continue;
+    jsw_chave(&w, tab[i].id);
+    jsw_obj_ini(&w);
+    if (tab[i].fundo[0]) jsw_cs(&w, "b", tab[i].fundo);
+    if (tab[i].logo[0])  jsw_cs(&w, "l", tab[i].logo);
+    jsw_obj_fim(&w);
+  }
+  jsw_obj_fim(&w);
+  { const char *s = jsw_texto_final(&w);
+    size_t n = s ? strlen(s) : 0;
+    if (n > 2 && n < tam) { memcpy(dst, s, n + 1); jsw_livre(&w); return (int)n; } }
+  jsw_livre(&w);
+  return 0;
+}
+
+int arteesc_importar_json(const char *json) {
+  const char *k, *v, *fim, *p;
+  int mudou = 0;
+  if (!json) return 0;
+  if (!carregado) arteesc_iniciar();
+  k = strstr(json, "\"artwork_choices_v1\"");
+  if (!k) return 0;
+  v = strchr(k, ':');
+  if (!v) return 0;
+  v++;
+  while (*v && (unsigned char)*v <= ' ') v++;
+  if (*v != '{') return 0;
+  fim = js_fim(v);
+  p = v + 1;
+  while (p && p < fim) {
+    char id[40], fundo[ARTEESC_URL], logo[ARTEESC_URL];
+    const char *q, *ov, *of;
+    while (p < fim && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' || *p == ',')) p++;
+    if (p >= fim || *p != '"') break;
+    p++;
+    q = p;
+    while (q < fim && *q != '"') { if (*q == '\\' && q + 1 < fim) q++; q++; }
+    if (q >= fim) break;
+    { size_t len = (size_t)(q - p);
+      if (len >= sizeof id) len = sizeof id - 1;
+      memcpy(id, p, len); id[len] = 0; }
+    p = q + 1;
+    ov = strchr(p, ':');
+    if (!ov || ov >= fim) break;
+    ov++;
+    while (ov < fim && (unsigned char)*ov <= ' ') ov++;
+    if (ov >= fim || *ov != '{') { p = js_fim(ov); continue; }
+    of = js_fim(ov);
+    fundo[0] = 0; logo[0] = 0;
+    js_texto(ov, of, "b", fundo, sizeof fundo);
+    js_texto(ov, of, "l", logo, sizeof logo);
+    if (id[0]) {
+      char ck[40];
+      arteesc_chave(id, ck, sizeof ck);
+      if (ck[0]) {
+        int idx = achar(ck);
+        if (idx < 0 && nTab < ARTEESC_MAX && (urlValida(fundo) || urlValida(logo))) {
+          ArteEsc *e = &tab[nTab++];
+          memset(e, 0, sizeof *e);
+          snprintf(e->id, sizeof e->id, "%s", ck);
+          if (urlValida(fundo)) snprintf(e->fundo, sizeof e->fundo, "%s", fundo);
+          if (urlValida(logo))  snprintf(e->logo, sizeof e->logo, "%s", logo);
+          e->ordem = ++relogio;
+          mudou = 1;
+        } else if (idx >= 0) {
+          if (urlValida(fundo) && !tab[idx].fundo[0]) { snprintf(tab[idx].fundo, sizeof tab[idx].fundo, "%s", fundo); mudou = 1; }
+          if (urlValida(logo)  && !tab[idx].logo[0])  { snprintf(tab[idx].logo, sizeof tab[idx].logo, "%s", logo);  mudou = 1; }
+        }
+      }
+    }
+    p = of;
+  }
+  if (mudou) { reindexar(); gravar(); }
+  return mudou;
 }

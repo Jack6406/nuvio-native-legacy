@@ -3705,7 +3705,7 @@ static void perfilAbrirSessao(int antes) {
   atividade_iniciar();
   recomenda_abrir_sessao();
   biblioteca_abrir_sessao();
-  guia_abrir_sessao();
+  /* Live TV stripped for 1 GB Fire TV RAM savings */
   avisos_abrir_sessao();
   home_abrir_sessao();
   menu_definir_destino(MENU_INICIO);
@@ -6848,8 +6848,7 @@ void app_atualizar(float dt, Uint32 agora) {
   // O guia publica o fio de carga e bombeia o EPG mesmo fechado — barato, e e
   // o que deixa o zap por CH+/- responder na segunda tecla em vez de na
   // vigesima. Com o player num canal, epg_passo alimenta o banner "agora".
-  guia_atualizar(dt, agora);
-  if (player_aberto()) epg_passo();
+  /* Live TV & EPG background loop stripped for 1 GB Fire TV RAM savings */
   ctx_atualizar(dt, agora);
   // Titulo escolhido na grade: abre o detalhe, como se tivesse vindo da home.
   { int idx = vertudo_pediu_abrir();

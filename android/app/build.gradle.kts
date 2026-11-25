@@ -30,7 +30,8 @@ android {
         applicationId = "space.nuvio.nativelegacy"
         minSdk = 24
         targetSdk = 35
-        versionCode = vx * 10000 + vy * 100 + vz
+        val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+        versionCode = vx * 10000 + vy * 100 + vz + ciRun
         versionName = versao
         ndk { if (!lite) abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         externalNativeBuild {
@@ -69,7 +70,16 @@ android {
     // Assinatura de release so existe com keystore no ambiente; sem ela o
     // assembleRelease nem e chamado (tools/android.sh).
     val ks = System.getenv("NUVIO_KEYSTORE")
+    val fixedDebugKs = rootProject.file("debug.keystore")
     signingConfigs {
+        getByName("debug") {
+            if (fixedDebugKs.exists()) {
+                storeFile = fixedDebugKs
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (ks != null) create("release") {
             storeFile = file(ks)
             storePassword = System.getenv("NUVIO_KEYSTORE_PASS")

@@ -58,5 +58,7 @@ int arteesc_definir_fundo(const char *id, const char *url);
 int arteesc_definir_logo(const char *id, const char *url);
 
 int arteesc_n(void);
+int arteesc_exportar_json(char *dst, size_t tam);
+int arteesc_importar_json(const char *json);
 
 #endif

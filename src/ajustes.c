@@ -3735,8 +3735,8 @@ const char *ajustes_trailer_audio(void) {
 }
 int   ajustes_trailer_fonte(void)     { int v = valor[AJ_TRAILER_FONTE]; return (v >= 0 && v < nValores(AJ_TRAILER_FONTE)) ? v : 0; }
 int  ajustes_envio_auto(void)         { return lig(AJ_ENVIO_AUTO); }
-int  ajustes_menu_explorar(void)      { return lig(AJ_MENU_EXPLORAR); }
-int  ajustes_menu_guia(void)          { return lig(AJ_MENU_GUIA); }
+int  ajustes_menu_explorar(void)      { return 1; }
+int  ajustes_menu_guia(void)          { return 0; }
 int  ajustes_menu_agenda(void)        { return lig(AJ_MENU_AGENDA); }
 int  ajustes_menu_perfil(void)        { return lig(AJ_MENU_PERFIL); }
 int  ajustes_gpu_efeitos(void) { return valor[AJ_GPU_EFEITOS]; }

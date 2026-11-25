@@ -12,6 +12,8 @@
 #include "simkl.h"
 #include "cwordem.h"
 #include "descoberta.h"
+#include "artehero.h"
+#include "tex_cache.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -143,9 +145,25 @@ void continuar_desenhar(const CatItem *ci, GfxRect r, float raio) {
   }
   if (seloLarg > 0)
     badge_imdb(r.x + r.w - pad - seloLarg, base - BADGE_H, ci->nota, 0, 1.0f);
-  TxtLinha titulo = txt_linha_corta(TXT_CW_TITULO, ci->titulo, 247, 248, 250, 255, livre);
-  base -= titulo.h;
-  txt_desenhar_alpha(titulo, r.x + pad, base, 1);
+  { int desenhouLogo = 0;
+    if (ci->logo[0]) {
+      const char *urlL = artehero_logo_sessao_larg(ci, livre);
+      GLuint tl = urlL ? tex_obter_logo_larg(urlL, livre) : 0;
+      float ap = tl ? tex_aspecto(urlL) : 0.0f;
+      if (tl && ap > 0.1f) {
+        float maxW = livre * 0.88f, maxH = 62.0f * esc;
+        float wL = maxW, hL = wL / ap;
+        if (hL > maxH) { hL = maxH; wL = hL * ap; }
+        base -= hL;
+        gfx_rect((GfxRect){ r.x + pad, base, wL, hL }, tl, GFX_TEXTURA, 0, 0, 0, 0, 0, 0, 0, 1.0f);
+        desenhouLogo = 1;
+      }
+    }
+    if (!desenhouLogo) {
+      TxtLinha titulo = txt_linha_corta(TXT_CW_TITULO, ci->titulo, 247, 248, 250, 255, livre);
+      base -= titulo.h;
+      txt_desenhar_alpha(titulo, r.x + pad, base, 1);
+    } }
   if (serie) {
     // Sem sigla "T1:E2": quem ve o card nao sabe o que T e E querem dizer.
     // Sao duas chaves prontas da tabela ("Temporada %d", "Episodio %d")
