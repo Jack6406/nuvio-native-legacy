@@ -7,6 +7,11 @@ on:
     branches: [ master, main ]
   workflow_dispatch:
 
+env:
+  ANDROID_HOME: /usr/local/lib/android/sdk
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+  ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
+
 jobs:
   build-android-lite:
     name: Build Android Lite APKs (Fire Stick armeabi-v7a & arm64-v8a)
@@ -22,22 +27,69 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Resolve Android SDK & install NDK 27.2, Platform 35, CMake 3.22.1
+      - name: Install Android NDK 27.2, Platform 35, CMake 3.22.1
         run: |
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$SDK/ndk/27.2.12479018" >> "$GITHUB_ENV"
-          echo "Using Android SDK at: \$SDK"
-          yes | "\$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          "\$SDK/cmdline-tools/latest/bin/sdkmanager" \
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
             "platforms;android-35" \
             "build-tools;35.0.0" \
             "ndk;27.2.12479018" \
             "cmake;3.22.1"
-          ls -la "\$SDK/ndk/27.2.12479018/build/cmake/android.toolchain.cmake"
 
       - name: Install build tools
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y ninja-build nasm imagemagick libr
+          sudo apt-get install -y ninja-build nasm imagemagick librsvg2-bin ffmpeg python3 pkg-config unzip zip
+
+      - name: Cache native Android deps (libcurl, libjpeg, libwebp, SDL2)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/nuvio-android
+          key: nuvio-android-deps-ndk27-${{ hashFiles('tools/android/deps.sh', 'tools/android.sh') }}
+          restore-keys: |
+            nuvio-android-deps-ndk27-
+
+      - name: Normalize script permissions and line endings
+        run: |
+          sed -i 's/\r$//' tools/android.sh tools/env.sh tools/android/deps.sh tools/android/ffmpeg-android.sh android/gradlew
+          chmod +x tools/android.sh tools/env.sh tools/android/deps.sh tools/android/ffmpeg-android.sh android/gradlew
+
+      - name: Generate local.properties from GitHub Secrets
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          NUVIO_SUPABASE_URL: ${{ secrets.NUVIO_SUPABASE_URL }}
+          NUVIO_SUPABASE_ANON_KEY: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
+          TV_LOGIN_WEB_BASE_URL: ${{ secrets.TV_LOGIN_WEB_BASE_URL }}
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+        run: |
+          printf 'TMDB_API_KEY=%s\nNUVIO_SUPABASE_URL=%s\nNUVIO_SUPABASE_ANON_KEY=%s\nTV_LOGIN_WEB_BASE_URL=%s\nTRAKT_CLIENT_ID=%s\nTRAKT_CLIENT_SECRET=%s\nSIMKL_CLIENT_ID=%s\n' \
+            "$TMDB_API_KEY" "$NUVIO_SUPABASE_URL" "$NUVIO_SUPABASE_ANON_KEY" "$TV_LOGIN_WEB_BASE_URL" "$TRAKT_CLIENT_ID" "$TRAKT_CLIENT_SECRET" "$SIMKL_CLIENT_ID" > local.properties
+
+      - name: Build native Android libraries (libcurl, libjpeg, libwebp)
+        run: bash tools/android/deps.sh armeabi-v7a arm64-v8a
+
+      - name: Build Android Lite APKs (Fire Stick 1GB + ARM64)
+        env:
+          NUVIO_APK_LITE: "1"
+          NUVIO_RUST_MKVCORE: "0"
+        run: bash tools/android.sh --debug-only
+
+      - name: Upload Fire Stick 32-bit APK (armeabi-v7a)
+        uses: actions/upload-artifact@v4
+        with:
+          name: NuvioLegacy-FireStick-armeabi-v7a-apk
+          path: |
+            android/app/build-lite/outputs/apk/debug/*armeabi-v7a*.apk
+            build/android/*armv7*.apk
+          if-no-files-found: warn
+
+      - name: Upload All Built APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: NuvioLegacy-All-APKs
+          path: |
+            android/app/build-lite/outputs/apk/debug/*.apk
+            build/android/*.apk
+          if-no-files-found: error
