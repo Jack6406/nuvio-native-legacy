@@ -24,8 +24,8 @@ jobs:
 
       - name: Install Android SDK components (NDK 27.2, Platform 35, CMake 3.22.1)
         run: |
-          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+          yes | "\${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "\${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platforms;android-35" \
             "build-tools;35.0.0" \
             "ndk;27.2.12479018" \
@@ -40,61 +40,43 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/nuvio-android
-          key: nuvio-android-deps-ndk27-${{ hashFiles('tools/android/deps.sh', 'tools/android.sh') }}
+          key: nuvio-android-deps-ndk27-\${{ hashFiles('tools/android/deps.sh', 'tools/android.sh') }}
           restore-keys: |
             nuvio-android-deps-ndk27-
 
       - name: Normalize script permissions and line endings
         run: |
-          sed -i 's/\r$//' tools/android.sh tools/env.sh tools/android/deps.sh tools/android/ffmpeg-android.sh android/gradlew
+          sed -i 's/\r\$//' tools/android.sh tools/env.sh tools/android/deps.sh tools/android/ffmpeg-android.sh android/gradlew
           chmod +x tools/android.sh tools/env.sh tools/android/deps.sh tools/android/ffmpeg-android.sh android/gradlew
 
       - name: Generate local.properties from GitHub Secrets
         env:
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          NUVIO_SUPABASE_URL: ${{ secrets.NUVIO_SUPABASE_URL }}
-          NUVIO_SUPABASE_ANON_KEY: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
-          TV_LOGIN_WEB_BASE_URL: ${{ secrets.TV_LOGIN_WEB_BASE_URL }}
-          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
-          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
-          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          TMDB_API_KEY: \${{ secrets.TMDB_API_KEY }}
+          NUVIO_SUPABASE_URL: \${{ secrets.NUVIO_SUPABASE_URL }}
+          NUVIO_SUPABASE_ANON_KEY: \${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
+          TV_LOGIN_WEB_BASE_URL: \${{ secrets.TV_LOGIN_WEB_BASE_URL }}
+          TRAKT_CLIENT_ID: \${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: \${{ secrets.TRAKT_CLIENT_SECRET }}
+          SIMKL_CLIENT_ID: \${{ secrets.SIMKL_CLIENT_ID }}
         run: |
           cat > local.properties <<EOF
-          TMDB_API_KEY=${TMDB_API_KEY}
-          NUVIO_SUPABASE_URL=${NUVIO_SUPABASE_URL}
-          NUVIO_SUPABASE_ANON_KEY=${NUVIO_SUPABASE_ANON_KEY}
-          TV_LOGIN_WEB_BASE_URL=${TV_LOGIN_WEB_BASE_URL}
-          TRAKT_CLIENT_ID=${TRAKT_CLIENT_ID}
-          TRAKT_CLIENT_SECRET=${TRAKT_CLIENT_SECRET}
-          SIMKL_CLIENT_ID=${SIMKL_CLIENT_ID}
+          TMDB_API_KEY=\${TMDB_API_KEY}
+          NUVIO_SUPABASE_URL=\${NUVIO_SUPABASE_URL}
+          NUVIO_SUPABASE_ANON_KEY=\${NUVIO_SUPABASE_ANON_KEY}
+          TV_LOGIN_WEB_BASE_URL=\${TV_LOGIN_WEB_BASE_URL}
+          TRAKT_CLIENT_ID=\${TRAKT_CLIENT_ID}
+          TRAKT_CLIENT_SECRET=\${TRAKT_CLIENT_SECRET}
+          SIMKL_CLIENT_ID=\${SIMKL_CLIENT_ID}
           EOF
 
       - name: Build native Android libraries (libcurl, libjpeg, libwebp)
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
-        run: bash tools/android/deps.sh armeabi-v7a arm64-v8a
+        run: |
+          export ANDROID_NDK_HOME="\${ANDROID_HOME}/ndk/27.2.12479018"
+          bash tools/android/deps.sh armeabi-v7a arm64-v8a
 
       - name: Build Android Lite APKs (Fire Stick 1GB + ARM64)
         env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
           NUVIO_APK_LITE: "1"
           NUVIO_RUST_MKVCORE: "0"
-        run: bash tools/android.sh --debug-only
-
-      - name: Upload Fire Stick 32-bit APK (armeabi-v7a)
-        uses: actions/upload-artifact@v4
-        with:
-          name: NuvioLegacy-FireStick-armeabi-v7a-apk
-          path: |
-            android/app/build-lite/outputs/apk/debug/*armeabi-v7a*.apk
-            build/android/*armv7*.apk
-          if-no-files-found: warn
-
-      - name: Upload All Built APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: NuvioLegacy-All-APKs
-          path: |
-            android/app/build-lite/outputs/apk/debug/*.apk
-            build/android/*.apk
-          if-no-files-found: error
+        run: |
+          export ANDROID_NDK_HOME="\${ANDROID_HOME}/ndk/27.2.1
