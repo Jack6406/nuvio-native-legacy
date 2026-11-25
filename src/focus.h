@@ -19,7 +19,7 @@
 #ifdef NV_ANDROID
 #define FOCUS_MAX_FILEIRAS 1700
 #else
-#define FOCUS_MAX_FILEIRAS 700
+#define FOCUS_MAX_FILEIRAS 1200
 #endif
 
 typedef struct {

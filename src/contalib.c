@@ -404,11 +404,12 @@ int contalib_aplicar_catalogo(void) {
   }
 
   if (nFaltam > 0) {
-    CatItem *novos = (CatItem *)malloc(sizeof(CatItem) * (size_t)nFaltam);
-    int *idx = (int *)malloc(sizeof(int) * (size_t)nFaltam);
+    int loteMax = nFaltam > 200 ? 200 : nFaltam;
+    CatItem *novos = (CatItem *)malloc(sizeof(CatItem) * (size_t)loteMax);
+    int *idx = (int *)malloc(sizeof(int) * (size_t)loteMax);
     if (novos && idx) {
       int q = 0, entraram;
-      for (i = 0; i < nItens && i < CONTALIB_MAX; i++)
+      for (i = 0; i < nItens && i < CONTALIB_MAX && q < loteMax; i++)
         if (faltam[i]) montarItem(&novos[q++], &itens[i]);
       entraram = cat_acrescentar_lote(novos, q, idx);
       if (entraram > 0) { marcados += entraram; ultimo = idx[entraram - 1]; }

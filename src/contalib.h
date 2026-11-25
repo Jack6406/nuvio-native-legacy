@@ -54,14 +54,14 @@
 // na ordem da resposta, que nao e a de adicao — o titulo novo era o que caia.
 // Agora o corte, quando existe, guarda os MAIS RECENTES por `added_at` e o log
 // diz quantos ficaram de fora.
-#define CONTALIB_MAX        1500
+#define CONTALIB_MAX        6000
 // Paginacao de `sync_pull_library`, como o web faz: paginas de CONTALIB_PAGINA
 // ate uma vir incompleta. So assim da para saber quais sao os mais recentes
 // quando a conta tem mais que o teto — o servidor nao promete ordem. Ate
 // CONTALIB_PAGINAS paginas (2000 linhas, ~2 MB de corpo transitorio no fio do
 // sync); o que passar disso nao e baixado, e o log diz.
 #define CONTALIB_PAGINA     500
-#define CONTALIB_PAGINAS    12
+#define CONTALIB_PAGINAS    14
 // Vistos custam 48 bytes cada; o teto aqui pode ser folgado.
 #define CONTALIB_VISTO_MAX  10800
 // Paginacao de `sync_pull_watched_items`, como o web (pullRemoteWatchedItems,
