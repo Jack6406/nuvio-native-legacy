@@ -903,25 +903,32 @@ static int puxarBiblioteca(int perfil, char **destino) {
              "{\"p_profile_id\":%d,\"p_limit\":%d,\"p_offset\":%d}",
              perfil, CONTALIB_PAGINA, pagina * CONTALIB_PAGINA);
     c = puxarBlob("sync_pull_library", corpo, pagina ? &pag : &acum);
+    if (c < 0 && pagina == 0) {
+      snprintf(corpo, sizeof corpo, "{\"p_profile_id\":%d}", perfil);
+      c = puxarBlob("sync_pull_library", corpo, &acum);
+      if (c >= 0) {
+        total = c;
+        break;
+      }
+    }
     if (c < 0) {
-      printf("[sync] biblioteca: pagina %d failed; partial snapshot discarded\n", pagina + 1);
-      free(acum); free(pag);
-      return -1;
+      if (pagina == 0) { free(acum); free(pag); return -1; }
+      printf("[sync] biblioteca: pagina %d falhou; mantendo %d itens\n", pagina + 1, total);
+      break;
     }
     if (pagina && pag) {
       if (!colarArray(&acum, pag)) {
-        printf("[sync] biblioteca: page %d assembly failed; partial snapshot discarded\n", pagina + 1);
-        free(acum); free(pag);
-        return -1;
+        printf("[sync] biblioteca: pagina %d nao colou; mantendo %d itens\n", pagina + 1, total);
+        free(pag); pag = NULL;
+        break;
       }
       free(pag); pag = NULL;
     }
     total += c;
     if (c < CONTALIB_PAGINA) break;
     if (pagina + 1 == CONTALIB_PAGINAS) {
-      printf("[sync] biblioteca: page cap reached; partial snapshot discarded\n");
-      free(acum);
-      return -1;
+      printf("[sync] biblioteca: teto de %d paginas (%d itens); mantendo o baixado\n", CONTALIB_PAGINAS, total);
+      break;
     }
   }
   free(pag);

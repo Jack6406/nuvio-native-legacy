@@ -54,14 +54,14 @@
 // na ordem da resposta, que nao e a de adicao — o titulo novo era o que caia.
 // Agora o corte, quando existe, guarda os MAIS RECENTES por `added_at` e o log
 // diz quantos ficaram de fora.
-#define CONTALIB_MAX        500
+#define CONTALIB_MAX        1500
 // Paginacao de `sync_pull_library`, como o web faz: paginas de CONTALIB_PAGINA
 // ate uma vir incompleta. So assim da para saber quais sao os mais recentes
 // quando a conta tem mais que o teto — o servidor nao promete ordem. Ate
 // CONTALIB_PAGINAS paginas (2000 linhas, ~2 MB de corpo transitorio no fio do
 // sync); o que passar disso nao e baixado, e o log diz.
 #define CONTALIB_PAGINA     500
-#define CONTALIB_PAGINAS    4
+#define CONTALIB_PAGINAS    12
 // Vistos custam 48 bytes cada; o teto aqui pode ser folgado.
 #define CONTALIB_VISTO_MAX  10800
 // Paginacao de `sync_pull_watched_items`, como o web (pullRemoteWatchedItems,
@@ -72,7 +72,7 @@
 #define CONTALIB_VISTO_PAGINAS  12
 
 typedef struct {
-  char id[24];        // content_id, "tt0111161"
+  char id[64];        // content_id, "tt0111161" or "tmdb:550"
   char tipo[8];       // "movie" | "series", ja normalizado
   char titulo[160];
   // poster com o teto de CatItem.poster (#433): cartaz de provedor com nota passa
@@ -87,7 +87,7 @@ typedef struct {
 } ContaLibItem;
 
 typedef struct {
-  char id[24];
+  char id[64];
   char tipo[8];
   int  temporada, episodio;   // 0 quando a linha e do TITULO inteiro
   long long vistoMs;

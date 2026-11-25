@@ -257,12 +257,11 @@ static int bibTinta2(void) { return 205; }
 #define BIB_CHIP_PADX     20.0f
 #define BIB_FAIXA_GAP     16.0f   // entre seletor, fio e chips
 #define BIB_GRADE_Y      284.0f   // faixa + 36
-#define BIB_COLUNAS_MAX      7
-// Cartazes mantem o tamanho real (Escala de texto nao os muda): k compensa a tela
-// virtual da camada de texto (gfx_poster_k, 1 em 100%).
-#define BIB_CARD_W       (220.0f * gfx_poster_k())
-#define BIB_POSTER_H     (330.0f * gfx_poster_k())
-#define BIB_CARD_GAP      26.0f
+#define BIB_COLUNAS_MAX      5
+// Nuvio Echo style: 5 large portrait posters per row (280x420)
+#define BIB_CARD_W       (280.0f * gfx_poster_k())
+#define BIB_POSTER_H     (420.0f * gfx_poster_k())
+#define BIB_CARD_GAP      28.0f
 #define BIB_TIT_GAP       10.0f
 #define BIB_LINHA_PASSO  (BIB_POSTER_H * (1.0f + BIB_FOCO_ESCALA * 0.5f) + BIB_TIT_GAP + 14.0f + 52.0f + 2.8f)
 #define BIB_FOCO_ESCALA    0.08f
@@ -274,8 +273,8 @@ static int bibTinta2(void) { return 205; }
 // (CatItem.naLista): a watchlist do Trakt, posta ali pela descoberta, e a
 // biblioteca da CONTA (sync_pull_library), posta ali por contalib.c.
 // "Coleção" = TENHO, e so o Trakt tem. "Listas" = conjuntos, nao titulos.
-enum { MODO_SALVOS, MODO_VISTOS, MODO_NUVEM, MODO_LISTAS, BIB_N_MODOS };
-static const char *ROT_MODO[BIB_N_MODOS] = { "Salvos", "Watched", "Coleção", "Listas" };
+enum { MODO_SALVOS, MODO_MOVIES, MODO_SERIES, MODO_VISTOS, MODO_LISTAS, BIB_N_MODOS };
+static const char *ROT_MODO[BIB_N_MODOS] = { "All", "Movies", "Series", "Watched History", "Lists" };
 
 // Seletor "Tipo": os mesmos valores do web.
 enum { TIPO_TODOS, TIPO_FILME, TIPO_SERIE, BIB_N_TIPOS };
@@ -316,12 +315,12 @@ static float recadoAte;
 // Indices visiveis. >= 0 e indice do CATALOGO; < 0 e um titulo da lista LOCAL
 // de salvos que nao esta no catalogo agora, codificado como -(indice + 1) em
 // salvos_item(). Ver itemFiltro.
-static int filtro[CAT_MAX + SALVOS_MAX];
+#define BIB_CONTALIB_BASE (SALVOS_MAX + 1)
+static int filtro[CAT_MAX + SALVOS_MAX + CONTALIB_MAX];
 static int nFiltro = 0;
 static int totalModo = 0;
-// Quantos titulos cada modo de titulos tem (Salvos, Colecao), para a contagem
-// do seletor segmentado. Refeito em reconstruir(), nunca por quadro.
-static int contaModo[3];
+// Counts for All, Movies, Series, Watched History
+static int contaModo[4];
 static Foco foco;
 
 void biblioteca_teste_foco(int *fileira, int *coluna, int *acao) {
@@ -624,45 +623,72 @@ static void remapear(int preservar) {
 // CatItem montado em `tmp` com o que a lista local guardou (titulo, poster,
 // meta), do mesmo jeito que o item de uma lista aberta (lst_item).
 static const CatItem *itemFiltro(int v, CatItem *tmp) {
-  const SalvoItem *s;
   if (v >= 0) return cat_item(v);
-  s = salvos_item(-v - 1);
-  if (!s || !tmp) return NULL;
-  memset(tmp, 0, sizeof *tmp);
-  snprintf(tmp->imdb, sizeof tmp->imdb, "%s", s->id);
-  snprintf(tmp->tipo, sizeof tmp->tipo, "%s", s->tipo);
-  snprintf(tmp->titulo, sizeof tmp->titulo, "%s", s->titulo);
-  snprintf(tmp->poster, sizeof tmp->poster, "%s", s->poster);
-  snprintf(tmp->meta, sizeof tmp->meta, "%s", s->meta);
-  tmp->nota = s->nota;
-  tmp->naLista = 1;
-  arte_metahub_preencher(tmp);
-  return tmp;
+  if (!tmp) return NULL;
+  if (-v >= BIB_CONTALIB_BASE) {
+    const ContaLibItem *cl = contalib_item(-v - BIB_CONTALIB_BASE);
+    if (!cl) return NULL;
+    memset(tmp, 0, sizeof *tmp);
+    snprintf(tmp->imdb, sizeof tmp->imdb, "%s", cl->id);
+    snprintf(tmp->tipo, sizeof tmp->tipo, "%.7s", cl->tipo);
+    snprintf(tmp->titulo, sizeof tmp->titulo, "%s", cl->titulo);
+    snprintf(tmp->genero, sizeof tmp->genero, "%s", cl->genero);
+    snprintf(tmp->poster, sizeof tmp->poster, "%s", cl->poster);
+    snprintf(tmp->backdrop, sizeof tmp->backdrop, "%s", cl->backdrop);
+    snprintf(tmp->meta, sizeof tmp->meta, "%s", cl->meta);
+    tmp->nota = cl->nota;
+    tmp->naLista = 1;
+    arte_metahub_preencher(tmp);
+    return tmp;
+  }
+  { const SalvoItem *s = salvos_item(-v - 1);
+    if (!s) return NULL;
+    memset(tmp, 0, sizeof *tmp);
+    snprintf(tmp->imdb, sizeof tmp->imdb, "%s", s->id);
+    snprintf(tmp->tipo, sizeof tmp->tipo, "%s", s->tipo);
+    snprintf(tmp->titulo, sizeof tmp->titulo, "%s", s->titulo);
+    snprintf(tmp->poster, sizeof tmp->poster, "%s", s->poster);
+    snprintf(tmp->meta, sizeof tmp->meta, "%s", s->meta);
+    tmp->nota = s->nota;
+    tmp->naLista = 1;
+    arte_metahub_preencher(tmp);
+    return tmp; }
 }
 // So as chaves de ordenacao, SEM montar CatItem: a ordenacao compara O(n^2)
 // vezes e montar 15 KB por comparacao custaria gigabytes de memset.
 static const char *tituloFiltro(int v) {
-  const CatItem *c; const SalvoItem *s;
+  const CatItem *c;
   if (v >= 0) { c = cat_item(v); return c ? c->titulo : ""; }
-  s = salvos_item(-v - 1); return s ? s->titulo : "";
+  if (-v >= BIB_CONTALIB_BASE) { const ContaLibItem *cl = contalib_item(-v - BIB_CONTALIB_BASE); return cl ? cl->titulo : ""; }
+  { const SalvoItem *s = salvos_item(-v - 1); return s ? s->titulo : ""; }
 }
 static const char *metaFiltro(int v) {
-  const CatItem *c; const SalvoItem *s;
+  const CatItem *c;
   if (v >= 0) { c = cat_item(v); return c ? c->meta : ""; }
-  s = salvos_item(-v - 1); return s ? s->meta : "";
+  if (-v >= BIB_CONTALIB_BASE) { const ContaLibItem *cl = contalib_item(-v - BIB_CONTALIB_BASE); return cl ? cl->meta : ""; }
+  { const SalvoItem *s = salvos_item(-v - 1); return s ? s->meta : ""; }
 }
 // 1 quando o titulo de uma posicao de `filtro` consta como visto (cat_visto,
 // o MESMO estado do selo). Salvo local fora do catalogo: so imdb e tipo importam
 // para o historico (#352).
 static int vistoFiltro(int v) {
-  if (v >= 0) return cat_visto(cat_item(v));
+  if (v >= 0) { const CatItem *ci = cat_item(v); return ci && (cat_visto(ci) || vistoep_contar(ci->imdb) > 0); }
+  if (-v >= BIB_CONTALIB_BASE) {
+    const ContaLibItem *cl = contalib_item(-v - BIB_CONTALIB_BASE);
+    CatItem tmp;
+    if (!cl) return 0;
+    memset(&tmp, 0, sizeof tmp);
+    snprintf(tmp.imdb, sizeof tmp.imdb, "%s", cl->id);
+    snprintf(tmp.tipo, sizeof tmp.tipo, "%.7s", cl->tipo);
+    return cat_visto(&tmp) || vistoep_contar(cl->id) > 0;
+  }
   { const SalvoItem *s = salvos_item(-v - 1);
     CatItem tmp;
     if (!s) return 0;
     memset(&tmp, 0, sizeof tmp);
     snprintf(tmp.imdb, sizeof tmp.imdb, "%s", s->id);
     snprintf(tmp.tipo, sizeof tmp.tipo, "%s", s->tipo);
-    return cat_visto(&tmp); }
+    return cat_visto(&tmp) || vistoep_contar(s->id) > 0; }
 }
 static int ehSerieSalvo(const SalvoItem *s) {
   return s && !strcmp(s->tipo, "series");
@@ -691,6 +717,14 @@ static int salvoNaFonte(const CatItem *ci) {
   return ci->naLista && (ci->listaFontes & (1u << fonteSalvos));
 }
 
+static int modoEhSalvo(int m) { return m == MODO_SALVOS || m == MODO_MOVIES || m == MODO_SERIES; }
+
+static int modoAceitaSerie(int m, int isSeries) {
+  if (m == MODO_MOVIES) return !isSeries;
+  if (m == MODO_SERIES) return isSeries;
+  return 1;
+}
+
 static int contarModo(int m) {
   int n = cat_n(), total = 0;
   if (n > CAT_MAX) n = CAT_MAX;
@@ -698,28 +732,38 @@ static int contarModo(int m) {
   for (int i = 0; i < n; i++) {
     const CatItem *ci = cat_item(i);
     if (!ci) continue;
-    int ok = m == MODO_SALVOS ? salvoNaFonte(ci)
-           : m == MODO_VISTOS ? (cat_visto(ci) || vistoep_contar(ci->imdb) > 0)
-           : (ci->naColecao || comprado[i]);
+    int ok = modoEhSalvo(m) ? (salvoNaFonte(ci) && modoAceitaSerie(m, ehSerie(ci)))
+                            : (cat_visto(ci) || vistoep_contar(ci->imdb) > 0);
     if (!ok) continue;
     if (jaNoFiltro(ci->imdb)) continue;
     if (nContados < CAT_MAX) contados[nContados++] = i;
     total++;
   }
-  if (m == MODO_SALVOS && ajustes_fonte_traz_locais(fonteSalvos))
+  if (modoEhSalvo(m) && ajustes_fonte_traz_conta(fonteSalvos)) {
+    for (int k = 0; k < contalib_n(); k++) {
+      const ContaLibItem *cl = contalib_item(k);
+      if (!cl || !cl->id[0] || cat_indice_por_imdb(cl->id) >= 0) continue;
+      if (!modoAceitaSerie(m, !strcmp(cl->tipo, "series"))) continue;
+      total++;
+    }
+  }
+  if (modoEhSalvo(m) && ajustes_fonte_traz_locais(fonteSalvos)) {
     for (int k = salvos_n() - 1; k >= 0; k--) {
       const SalvoItem *sv = salvos_item(k);
-      if (sv && sv->id[0] && cat_indice_por_imdb(sv->id) < 0) total++;
+      if (!sv || !sv->id[0] || cat_indice_por_imdb(sv->id) >= 0) continue;
+      if (!modoAceitaSerie(m, ehSerieSalvo(sv))) continue;
+      total++;
     }
-  else if (m == MODO_VISTOS)
+  } else if (m == MODO_VISTOS) {
     for (int k = salvos_n() - 1; k >= 0; k--) {
       const SalvoItem *sv = salvos_item(k);
       if (sv && sv->id[0] && cat_indice_por_imdb(sv->id) < 0 && vistoFiltro(-k - 1)) total++;
     }
+  }
   return total;
 }
 
-// Refaz a lista visivel de TITULOS (modos Salvos e Coleção).
+// Refaz a lista visivel de TITULOS (All, Movies, Series, Watched History).
 static void reconstruirFonte(int novaFonte) {
   fonteSalvos = novaFonte;
   int n = cat_n();
@@ -732,59 +776,44 @@ static void reconstruirFonte(int novaFonte) {
   }
   if (n > CAT_MAX) n = CAT_MAX;
   contaModo[0] = contarModo(MODO_SALVOS);
-  contaModo[1] = contarModo(MODO_VISTOS);
-  contaModo[2] = contarModo(MODO_NUVEM);
+  contaModo[1] = contarModo(MODO_MOVIES);
+  contaModo[2] = contarModo(MODO_SERIES);
+  contaModo[3] = contarModo(MODO_VISTOS);
   nFiltro = 0;
   totalModo = 0;
   nContados = 0;
   for (int i = 0; i < n; i++) {
     const CatItem *ci = cat_item(i);
     if (!ci) continue;
-    // "Salvos" = QUERO VER (watchlist do Trakt). "Coleção" = TENHO.
-    //
-    // Os dois modos mostravam quase a MESMA lista: ambos incluiam ci->naLista,
-    // entao trocar de pilula praticamente nao mudava nada e as duas nao tinham
-    // razao de existir. A divisao agora e a do proprio Trakt, que separa
-    // watchlist (o que se pretende ver) de collection (o que se possui) — sao
-    // perguntas diferentes e cada pilula responde uma.
-    //
-    // E le do ITEM, nao mais do vetor naLista[] indexado por posicao. Aquele
-    // vetor era um erro conhecido e documentado: o catalogo e RECONSTRUIDO da
-    // rede a cada descoberta, entao a posicao 3 de hoje e outro titulo amanha —
-    // a marca "salvo" migrava sozinha para um filme que ninguem salvou.
-    int entra = (modo == MODO_SALVOS) ? salvoNaFonte(ci)
-              : (modo == MODO_VISTOS) ? (cat_visto(ci) || vistoep_contar(ci->imdb) > 0)
-                                      : (ci->naColecao || comprado[i]);
+    int entra = modoEhSalvo(modo) ? (salvoNaFonte(ci) && modoAceitaSerie(modo, ehSerie(ci)))
+                                  : (cat_visto(ci) || vistoep_contar(ci->imdb) > 0);
     if (!entra) continue;
-    // UM CARTAZ POR TITULO. O mesmo titulo vive em varias fileiras, cada uma
-    // com a sua copia marcada, e a serie com progresso tem id "tt123:1:2" ao
-    // lado do "tt123" da watchlist — a grade mostrava o titulo duas vezes. A
-    // regra e a de salvos_mesmo_titulo, a mesma do painel de Salvos.
     if (jaNoFiltro(ci->imdb)) continue;
     if (nContados < CAT_MAX) contados[nContados++] = i;
     totalModo++;
-    if (tipo == TIPO_FILME && ehSerie(ci)) { exclTipo++; continue; }
-    if (tipo == TIPO_SERIE && !ehSerie(ci)) { exclTipo++; continue; }
-    // Mesmo criterio da Home: so ano futuro conhecido; sem meta permanece.
     if (anoAtual && nlanc_meta_futuro(ci->meta, anoAtual)) { exclMeta++; continue; }
-    filtro[nFiltro++] = i;
+    if (nFiltro < (int)(sizeof filtro / sizeof filtro[0])) filtro[nFiltro++] = i;
   }
-  // OS SALVOS LOCAIS QUE O CATALOGO NAO TEM. salvos_aplicar_catalogo so MARCA
-  // quem esta no catalogo, de proposito (nao infla o catalogo com 15 KB por
-  // titulo); mas era por isso que o titulo salvo NESTA TV sumia da Biblioteca
-  // assim que a descoberta republicava o catalogo sem ele — "o que eu adiciono
-  // agora nao aparece" (issue do Owlphibia29). O painel de Salvos ja desenhava
-  // da lista local; a Biblioteca agora tambem. Os mais novos primeiro: a lista
-  // local e na ordem de insercao, e quem acabou de salvar procura o que salvou.
-  if ((modo == MODO_SALVOS && ajustes_fonte_traz_locais(fonteSalvos)) || modo == MODO_VISTOS) {
+  // Include Nuvio Account library items even if CAT_MAX was full!
+  if (modoEhSalvo(modo) && ajustes_fonte_traz_conta(fonteSalvos)) {
+    for (int k = 0; k < contalib_n() && nFiltro < (int)(sizeof filtro / sizeof filtro[0]); k++) {
+      const ContaLibItem *cl = contalib_item(k);
+      if (!cl || !cl->id[0] || cat_indice_por_imdb(cl->id) >= 0) continue;
+      if (!modoAceitaSerie(modo, !strcmp(cl->tipo, "series"))) continue;
+      totalModo++;
+      locaisFora++;
+      if (anoAtual && nlanc_meta_futuro(cl->meta, anoAtual)) { exclMeta++; continue; }
+      filtro[nFiltro++] = -(BIB_CONTALIB_BASE + k);
+    }
+  }
+  if ((modoEhSalvo(modo) && ajustes_fonte_traz_locais(fonteSalvos)) || modo == MODO_VISTOS) {
     for (int k = salvos_n() - 1; k >= 0 && nFiltro < (int)(sizeof filtro / sizeof filtro[0]); k--) {
       const SalvoItem *s = salvos_item(k);
       if (!s || !s->id[0] || cat_indice_por_imdb(s->id) >= 0) continue;
       if (modo == MODO_VISTOS && !vistoFiltro(-k - 1)) continue;
+      if (modoEhSalvo(modo) && !modoAceitaSerie(modo, ehSerieSalvo(s))) continue;
       totalModo++;
       locaisFora++;
-      if (tipo == TIPO_FILME && ehSerieSalvo(s)) { exclTipo++; continue; }
-      if (tipo == TIPO_SERIE && !ehSerieSalvo(s)) { exclTipo++; continue; }
       if (anoAtual && nlanc_meta_futuro(s->meta, anoAtual)) { exclMeta++; continue; }
       filtro[nFiltro++] = -k - 1;
     }
@@ -793,7 +822,7 @@ static void reconstruirFonte(int novaFonte) {
   // Ordenacao por insercao — sao poucas dezenas de itens, uma vez por troca.
   if (ordem == ORD_VISTO || ordem == ORD_NAO_VISTO) {
     // Duas faixas, ESTAVEL: a ordem de adicao segue dentro de cada uma.
-    static int tmpF[CAT_MAX + SALVOS_MAX];
+    static int tmpF[CAT_MAX + SALVOS_MAX + CONTALIB_MAX];
     int quer = ordem == ORD_VISTO, k = 0;
     for (int i = 0; i < nFiltro; i++) if (!!vistoFiltro(filtro[i]) == quer) tmpF[k++] = filtro[i];
     for (int i = 0; i < nFiltro; i++) if (!!vistoFiltro(filtro[i]) != quer) tmpF[k++] = filtro[i];
@@ -1221,7 +1250,29 @@ static void biblioteca_evento_(const SDL_Event *e) {
                         "Listas de qualquer pessoa no Trakt", TECLADO_MAX);
         }
       } else {
-        if (pickSel == 0)      { tipo = (tipo + 1) % BIB_N_TIPOS;   reconstruir(); }
+        if (pickSel == 0) {
+          // Random Movie: pick a random movie from current filtered list (or any item)
+          int movs = 0, pick = -1;
+          for (int q = 0; q < nFiltro; q++) {
+            CatItem tmp;
+            const CatItem *ci = itemFiltro(filtro[q], &tmp);
+            if (ci && !ehSerie(ci)) movs++;
+          }
+          if (movs > 0) {
+            int alvo = (int)((SDL_GetTicks() + (Uint32)nFiltro) % (Uint32)movs), seen = 0;
+            for (int q = 0; q < nFiltro; q++) {
+              CatItem tmp;
+              const CatItem *ci = itemFiltro(filtro[q], &tmp);
+              if (ci && !ehSerie(ci)) { if (seen++ == alvo) { pick = q; break; } }
+            }
+          } else if (nFiltro > 0) {
+            pick = (int)(SDL_GetTicks() % (Uint32)nFiltro);
+          }
+          if (pick >= 0) {
+            int idx = indiceDaCelula(pick);
+            if (idx >= 0) pedido = idx;
+          }
+        }
         else if (pickSel == 1) { ordem = (ordem + 1) % BIB_N_ORD;   reconstruir(); }
         else                     alternarExibicao();
       }
@@ -1628,8 +1679,8 @@ static void pickerTexto(int p, const char **rot, const char **val) {
     *rot = p == 0 ? "Fonte" : p == 1 ? "Exibição" : "Listas públicas";
     *val = p == 0 ? ROT_FONTE[fonte] : p == 1 ? ROT_VIS[exibicao] : "Procurar";
   } else {
-    *rot = p == 0 ? "Tipo" : p == 1 ? "Ordenar" : "Exibição";
-    *val = p == 0 ? ROT_TIPO[tipo] : p == 1 ? ROT_ORD[ordem] : ROT_VIS[exibicao];
+    *rot = p == 0 ? "Random" : p == 1 ? "Sort" : "Display";
+    *val = p == 0 ? "Movie" : p == 1 ? ROT_ORD[ordem] : ROT_VIS[exibicao];
   }
 }
 
@@ -1774,16 +1825,16 @@ static void desenhaVazio(void) {
     const char *semSimkl = modo == MODO_SALVOS && !totalModo
         ? simkl_aviso_sem_vinculo(ajustes_salvos_no_simkl()) : NULL;
     l1 = semSimkl ? semSimkl
-        : totalModo ? "Nenhum título neste filtro"
+        : totalModo ? "No titles in this filter"
         : modo == MODO_VISTOS ? "No watched titles yet"
-        : modo == MODO_NUVEM ? "Sua coleção aparece aqui" : "Sua próxima sessão começa aqui";
+        : "Your library is empty";
     l2 = semSimkl
         ? "O + salva no Plan to Watch do Simkl, e ele ainda não está vinculado nesta TV."
         : totalModo
-        ? "Em Tipo, escolha Todos. Confira também os filtros em Ajustes."
-        : modo == MODO_NUVEM
-          ? "Os filmes e séries da sua coleção no Trakt ficam reunidos nesta aba."
-          : "Abra um filme ou série e escolha Adicionar à lista para guardar.";
+        ? "Try switching tabs above or checking your filters in Settings."
+        : modo == MODO_VISTOS
+          ? "Movies and shows you finish watching will appear here."
+          : "Open any movie or show and choose Add to Library to keep it.";
   }
   { TxtLinha t1 = txt_linha(TXT_TITULO2, l1, 255, 255, 255, 255);
     TxtLinha t2 = txt_linha_corta(TXT_CALLOUT, l2, 150, 153, 162, 255, bibW());
@@ -1847,10 +1898,46 @@ static void desenhaCartaz(const CatItem *ci, GfxRect base, float f, float a,
     if (ajustes_vidro()) gfx_vidro_cartao(card, raio, f, a);
     else gfx_anel(card, raio, NV_BIB_POSTER_BORDA, ar, ag, ab, f * a);
   }
+  // Echo-style bottom pill overlay: Genre · ★ Rating (monochrome white star)
+  if (ci && (ci->nota > 0 || ci->genero[0])) {
+    char pill[64] = "", gen[32] = "";
+    if (ci->genero[0]) {
+      const char *p = ci->genero;
+      while (*p) {
+        const char *sep = strstr(p, " · ");
+        size_t len = sep ? (size_t)(sep - p) : strlen(p);
+        char seg[32];
+        if (len >= sizeof seg) len = sizeof seg - 1;
+        memcpy(seg, p, len); seg[len] = 0;
+        if (seg[0] && strcasecmp(seg, "Filme") && strcasecmp(seg, "Movie") &&
+            strcasecmp(seg, "Programa de TV") && strcasecmp(seg, "TV Show") &&
+            strcasecmp(seg, "Series") && strcasecmp(seg, "Série")) {
+          snprintf(gen, sizeof gen, "%s", seg);
+          break;
+        }
+        if (!sep) break;
+        p = sep + 4;
+      }
+    }
+    if (gen[0] && ci->nota > 0)
+      snprintf(pill, sizeof pill, "%s · \xe2\x98\x85 %.1f", gen, ci->nota / 10.0f);
+    else if (ci->nota > 0)
+      snprintf(pill, sizeof pill, "\xe2\x98\x85 %.1f", ci->nota / 10.0f);
+    else if (gen[0])
+      snprintf(pill, sizeof pill, "%s", gen);
+    if (pill[0]) {
+      TxtLinha pl = txt_linha_corta(TXT_CAPTION2, pill, 238, 242, 248, 255, card.w - 36.0f);
+      float pw = (float)pl.w + 22.0f, ph = (float)pl.h + 10.0f;
+      float px = card.x + (card.w - pw) * 0.5f;
+      float py = card.y + card.h - ph - 12.0f;
+      gfx_cor((GfxRect){ px, py, pw, ph }, ph * 0.5f, 0.06f, 0.07f, 0.10f, 0.78f * a * aArte);
+      txt_desenhar_alpha(pl, px + 11.0f, py + 5.0f, a * aArte);
+    }
+  }
   // Selo de assistido: o da Home (badges_selo_visto), no cartaz JA ESCALADO,
   // entao acompanha o foco de 1.08. Salvo local fora do catalogo chega como
   // CatItem temporario com imdb/tipo: o historico responde igual.
-  if (ci && ajustes_selo_visto() && cat_visto(ci))
+  if (ci && ajustes_selo_visto() && (cat_visto(ci) || vistoep_contar(ci->imdb) > 0))
     badges_selo_visto(card.x, card.y, card.w, a * aArte);
   if (ci) {
     float ty = base.y + base.h + BIB_TIT_GAP + 14.0f * f;
@@ -2320,7 +2407,6 @@ static void desenhaCabecalho(void) {
                              : fonte == FONTE_FIXADAS ? "LOCAL"
                              : "TRAKT")
       : modo == MODO_VISTOS ? (trakt_ativo() ? "TRAKT" : contalib_tem_conta() ? seloCaixaAlta("Conta") : "LOCAL")
-      : modo == MODO_NUVEM ? (trakt_ativo() ? "TRAKT" : "LOCAL")
       : fonteSalvos == AJ_SALVOS_LOCAL && contalib_tem_conta() ? seloCaixaAlta("Conta")
       : ajustes_fonte_selo(fonteSalvos);
     // TRAKT SAI COMO LOGO, nao como palavra. As outras origens continuam texto
@@ -2372,9 +2458,10 @@ static void desenhaResumo(void) {
     // biblioteca com a interface em inglês (issue #3).
     snprintf(resumo, sizeof resumo, "%d %s   ·   %s", nFiltro,
              i18n(nFiltro == 1 ? "título" : "títulos"),
-             i18n(modo == MODO_SALVOS ? "Sua lista para assistir"
-                : modo == MODO_VISTOS ? "Watched history"
-                                      : "Sua coleção no Trakt"));
+             i18n(modo == MODO_VISTOS ? "Watched history"
+                : modo == MODO_MOVIES ? "Saved movies"
+                : modo == MODO_SERIES ? "Saved series"
+                                      : "Your library"));
   }
   // O TETO DA GRADE NUNCA E CALADO. Com a exibicao de lista (uma coluna) a
   // grade para em BIB_MAX_LINHAS titulos; o contador acima continua dizendo
